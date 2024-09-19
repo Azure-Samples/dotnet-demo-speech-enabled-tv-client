@@ -1,0 +1,35 @@
+App:
+  KeyVaultUri: https://YOUR_AZURE_KEYVAULT.vault.azure.net
+  LogLevel: INFO # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+Bot:
+  BotId: YOUR_BOT_ID
+  BotTenantId: YOUR_BOT_TENANT_ID
+  BotName: YOUR_BOT_NAME
+  BotTokenEndpoint: https://YOUR_BOT_TOKEN_ENDPOINT
+  EndConversationMessage: quit
+
+Recognizer: 
+  SubscriptionKey: YOUR_AZURE_SPEECH_KEY
+  ServiceRegion: eastus
+  Language: en-US
+  SourceAudioType: microphone # microphone (file not supported)
+  SourceAudioPath: ./audio # path to either a folder containing audio or a specific audio file
+  ProfanityOption: masked # raw or masked
+  InitialSilenceTimeoutMs: 10000 # in milliseconds
+  EndSilenceTimeoutMs: 1200 # in milliseconds
+  StablePartialResultThreshold: 2
+
+Synthesizer: 
+  SubscriptionKey: YOUR_AZURE_SPEECH_KEY
+  ServiceRegion: eastus
+  VoiceName: en-US-AvaMultilingualNeural
+  SpeechSynthesisOutputFormat: Raw22050Hz16BitMonoPcm
+  DestAudioType: file # file (microphone not supported)
+  DestAudioPath: ./audio # path to either a folder containing audio or a specific audio file
+
+Analyzer:
+  CluKey: YOUR_CLU_KEY
+  CluResource: YOUR_CLU_RESOURCE
+  CluDeploymentName: YOUR_CLU_DEPLOYMENT_NAME
+  CluProjectName: YOUR_CLU_PROJECT_NAME

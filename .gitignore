@@ -1,0 +1,94 @@
+# Compiled files
+*.dll
+*.exe
+*.pdb
+
+# NuGet packages
+*.nupkg
+*.snupkg
+
+# User-specific files
+*.suo
+*.user
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+
+# visual studio code files
+*.vscode/
+
+# Visual Studio files
+.vs/
+*_i.c
+*_p.c
+*.suo
+*.sln.docstates
+*.sln.ide
+*.sln.ide-shm
+*.sln.ide-wal
+*.sln.suo
+*.suo
+*.user
+*.userosscache
+*.sln.ide-shm
+*.sln.ide-wal
+
+# Rider files
+.idea/
+*.sln.iml
+
+# Test Results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# Resharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# GhostDoc plugin setting file
+*.GhostDoc.xml
+
+# StyleCop
+StyleCopReport.xml
+
+# NCrunch
+_NCrunch_*
+.*crunch*.local.xml
+
+# Installshield output folder
+[Ee]xpress/
+
+# DocFX output folder
+_docfx/
+
+# Build results of an ATL project
+[Dd]ebugPS/
+[Rr]eleasePS/
+dlldata.c
+
+# Roslyn cache directories
+*.ide/
+*.ide-shm
+*.ide-wal
+
+# Unity generated folders
+Temp/
+Library/
+Logs/
+Build/
+
+# Runtime input/output
+*.pcm
+[Dd]ata/
+*.txt
+appsettings.yaml
