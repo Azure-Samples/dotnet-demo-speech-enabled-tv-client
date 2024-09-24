@@ -15,7 +15,7 @@ namespace SpeechEnabledCoPilot.Models
             public const string SubscriptionKey = "YOUR_SUBSCRIPTION_KEY";
             public const string ServiceRegion = "eastus";
             public const string VoiceName = "en-US-AvaMultilingualNeural";
-            public const string SpeechSynthesisOutputFormat = "Raw22050Hz16BitMonoPcm";
+            public const string SpeechSynthesisOutputFormat = "Raw48KHz16BitMonoPcm";
             public const string DestAudioType = "microphone"; // microphone or file
             public const string DestAudioPath = "./audio"; // path to either a folder containing audio or a specific audio file
         }

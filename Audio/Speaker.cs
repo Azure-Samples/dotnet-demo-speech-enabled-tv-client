@@ -15,16 +15,13 @@ namespace SpeechEnabledCoPilot.Audio
     /// </summary>
     public class Speaker : IAudioOutputStream
     {
-
         IAudioOutputStreamHandler? handler;
         StreamParameters param;
         PortAudioSharp.Stream? stream;
         bool isPlaying = false;
         private object syncLock = new object();
 
-        BlockingCollection<float[]> dataItems = new BlockingCollection<float[]>();
-        float[]? lastSampleArray = null;
-        int lastIndex = 0; // not played
+        BlockingCollection<byte[]> dataItems = new BlockingCollection<byte[]>();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Speaker"/> class.
@@ -52,7 +49,7 @@ namespace SpeechEnabledCoPilot.Audio
                 param = new StreamParameters();
                 param.device = deviceIndex;
                 param.channelCount = 1;
-                param.sampleFormat = SampleFormat.Float32;
+                param.sampleFormat = SampleFormat.Int16;
                 param.suggestedLatency = info.defaultLowInputLatency;
                 param.hostApiSpecificStreamInfo = IntPtr.Zero;
             }
@@ -64,35 +61,7 @@ namespace SpeechEnabledCoPilot.Audio
 
         public void onAudioData(byte[] audioData)
         {
-            // byte[] audioBytes = ConvertToByteArray(audioData);
-            using (BinaryWriter binWriter =
-                new BinaryWriter(File.Open("audio.pcm", FileMode.Append)))
-            {
-                binWriter.Write(audioData);
-            }
-            // int[] samples = new int[audioData.Length / 2];
-
-            // int nBytes = audioData.Length;
-            // int i = 0;
-            // while (i < nBytes)
-            // {
-            //     int j = 0;
-            //     while (j < 16)
-            //     {
-            //         if (i == nBytes)
-            //         {
-            //             break;
-            //         }
-            //         samples[j] = (short)(audioData[i]);
-            //         i++;
-            //         samples[j] |= (short)(audioData[i] << 8);
-            //         i++;
-            //         j++;
-            //     }
-            // }
-            // float[] data = Array.ConvertAll(samples, x => (float)x);
-            // dataItems.Add(data);
-            // System.Console.WriteLine($"Wrote {audioData.Length} bytes to buffer. Buffer size: {dataItems.Count}");
+            dataItems.Add(audioData);
         }
 
         /// <summary>
@@ -104,7 +73,7 @@ namespace SpeechEnabledCoPilot.Audio
         /// <param name="timeInfo">The time information.</param>
         /// <param name="statusFlags">The status flags.</param>
         /// <param name="userData">The user data.</param>
-        /// <returns>The stream callback result.</returns>
+        /// <returns>The stream callback result.</returns> 
         protected StreamCallbackResult onPlay(IntPtr input,
                                 IntPtr output,
                                 UInt32 frameCount,
@@ -114,78 +83,37 @@ namespace SpeechEnabledCoPilot.Audio
         {
             try
             {
-                // float[] samples = new float[frameCount];
-                // Marshal.Copy(input, samples, 0, (Int32)frameCount);
-
-                // byte[] audioData = new byte[samples.Length * sizeof(short)];
-                // int offset = 0;
-                // foreach (float sample in samples)
-                // {
-                //     short shortValue = (short)(sample * short.MaxValue);
-                //     BitConverter.GetBytes(shortValue).CopyTo(audioData, offset);
-                //     offset += sizeof(short);
-                // }
-                // handler.onAudioData(audioData);
-                Console.WriteLine("Playing audio...");
-
                 int expected = Convert.ToInt32(frameCount);
                 int i = 0;
 
-                while ((lastSampleArray != null || dataItems.Count != 0) && (i < expected))
+                if (dataItems.Count == 0)
                 {
-                    Console.WriteLine("Inside first while loop");
+                    // Play some silence while we wait for data
+                    int sizeInBytes = expected * 2;
+                    Marshal.Copy(new byte[sizeInBytes], 0, output, sizeInBytes);
+                    return StreamCallbackResult.Continue;
+                }
+
+                while ((dataItems.Count != 0) && (i < expected))
+                { // Fill up the buffer with the requested audio
                     int needed = expected - i;
-
-                    if (lastSampleArray != null)
-                    {
-                        Console.WriteLine("last sample is not null");
-                        int remaining = lastSampleArray.Length - lastIndex;
-                        if (remaining >= needed)
-                        {
-                            float[] this_block = lastSampleArray.Skip(lastIndex).Take(needed).ToArray();
-                            lastIndex += needed;
-                            if (lastIndex == lastSampleArray.Length)
-                            {
-                                lastSampleArray = null;
-                                lastIndex = 0;
-                            }
-
-                            Console.WriteLine("copying audio into output [1]...");
-                            Marshal.Copy(this_block, 0, IntPtr.Add(output, i * sizeof(float)), needed);
-                            return StreamCallbackResult.Continue;
-                        }
-
-                        float[] this_block2 = lastSampleArray.Skip(lastIndex).Take(remaining).ToArray();
-                        lastIndex = 0;
-                        lastSampleArray = null;
-
-                        Console.WriteLine("copying audio into output [2]...");
-                        Marshal.Copy(this_block2, 0, IntPtr.Add(output, i * sizeof(float)), remaining);
-                        i += remaining;
-                        continue;
-                    }
 
                     if (dataItems.Count != 0)
                     {
-                        Console.WriteLine("dataItems is not empty. Setting lastSampleArray");
-                        lastSampleArray = dataItems.Take();
-                        lastIndex = 0;
+                        byte[] audio = dataItems.Take();
+                        Marshal.Copy(audio, 0, output, audio.Length);
+                        i+= audio.Length/2;
                     }
                 }
-
-                if (i < expected)
-                {
-                    Console.WriteLine("copying audio into output [3]...");
-                    int sizeInBytes = (expected - i) * 4;
-                    Marshal.Copy(new byte[sizeInBytes], 0, IntPtr.Add(output, i * sizeof(float)), sizeInBytes);
+                if (dataItems.Count == 0) { // If we're done we're done
+                    return StreamCallbackResult.Complete;
                 }
-
                 return StreamCallbackResult.Continue;
             }
             catch (System.Exception e)
             {
                 Console.WriteLine($"Error recording audio: {e.Message}");
-                return StreamCallbackResult.Continue;
+                return StreamCallbackResult.Complete;
             }
         }
 
@@ -213,14 +141,12 @@ namespace SpeechEnabledCoPilot.Audio
 
                     try
                     {
-                        stream = new PortAudioSharp.Stream(inParams: null, outParams: param, sampleRate: 16000,
-                            framesPerBuffer: 2560,
+                        stream = new PortAudioSharp.Stream(inParams: null, outParams: param, sampleRate: 48000,
+                            framesPerBuffer: 4800,//2560,
                             streamFlags: StreamFlags.ClipOff,
                             callback: onPlay,
                             userData: IntPtr.Zero
                         );
-                        lastSampleArray = null;
-                        lastIndex = 0; // not played
 
                         stream.Start();
                     }

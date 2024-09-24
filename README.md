@@ -121,7 +121,7 @@ Synthesizer:
   SubscriptionKey: YOUR_AZURE_SPEECH_KEY
   ServiceRegion: eastus
   VoiceName: en-US-AvaMultilingualNeural
-  SpeechSynthesisOutputFormat: Raw22050Hz16BitMonoPcm
+  SpeechSynthesisOutputFormat: Raw48KHz16BitMonoPcm
   DestAudioType: file # file (microphone not supported)
   DestAudioPath: ./audio # path to either a folder containing audio or a specific audio file
 

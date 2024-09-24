@@ -45,7 +45,7 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
             {
                 Console.WriteLine("Invalid output format: " + settings.SpeechSynthesisOutputFormat);
                 Console.WriteLine("Defaulting to Raw22050Hz16BitMonoPcm");
-                config.SetSpeechSynthesisOutputFormat(SpeechSynthesisOutputFormat.Riff16Khz16BitMonoPcm);
+                config.SetSpeechSynthesisOutputFormat(SpeechSynthesisOutputFormat.Raw48Khz16BitMonoPcm);
             }
             System.Console.WriteLine("Generating audio with output format: " + settings.SpeechSynthesisOutputFormat);
 
@@ -89,13 +89,12 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
                         Console.WriteLine($"CANCELED: ErrorDetails=[{cancellation.ErrorDetails}]");
                         Console.WriteLine($"CANCELED: Did you set the speech resource key and region values?");
                     }
+                    if (audioStream != null) {
+                        audioStream.Stop();
+                    }
                     break;
                 default:
                     break;
-            }
-
-            if (audioStream != null) {
-                audioStream.Stop();
             }
         }
 
@@ -111,8 +110,9 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
                 throw new InvalidOperationException("Synthesizer not initialized");
             }
 
-            audioStream = new AudioFile(settings.DestAudioPath);
-
+//            audioStream = new AudioFile(settings.DestAudioPath);
+            audioStream = new Speaker();
+            
             using (var speechSynthesizer = new SpeechSynthesizer(config, null))
             {
                 var tokenRenewTask = StartTokenRenewTask(source.Token, speechSynthesizer);
@@ -135,9 +135,9 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
 
                 speechSynthesizer.SynthesisCompleted += (s, e) =>
                 {
-                    Console.WriteLine($"SynthesisCompleted event:" +
-                        $"\r\n\tAudioData: {e.Result.AudioData.Length} bytes" +
-                        $"\r\n\tAudioDuration: {e.Result.AudioDuration}");
+//                    Console.WriteLine($"SynthesisCompleted event:" +
+//                        $"\r\n\tAudioData: {e.Result.AudioData.Length} bytes" +
+//                        $"\r\n\tAudioDuration: {e.Result.AudioDuration}");
                 };
 
                 speechSynthesizer.SynthesisStarted += (s, e) =>
@@ -149,8 +149,8 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
 
                 speechSynthesizer.Synthesizing += (s, e) =>
                 {
-                    Console.WriteLine($"Synthesizing event:" +
-                        $"\r\n\tAudioData: {e.Result.AudioData.Length} bytes");
+//                    Console.WriteLine($"Synthesizing event:" +
+//                        $"\r\n\tAudioData: {e.Result.AudioData.Length} bytes");
 
                     // Send audio data to audio stream
                     audioStream.onAudioData(e.Result.AudioData);
