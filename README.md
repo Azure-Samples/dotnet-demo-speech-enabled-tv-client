@@ -75,7 +75,7 @@ Synthesizer Options:
   --ServiceRegion                   Azure Speech Service region. Default: eastus
   --VoiceName                       Azure TTS voice name. Default: en-US-AvaMultilingualNeural
   --SpeechSynthesisOutputFormat     Azure TTS output format. Default: Raw22050Hz16BitMonoPcm
-  --DestAudioType                   Audio output type [Microphone, File]. NOTE: Microphone not supported yet. Default: microphone
+  --DestAudioType                   Audio output type [speaker, File], Default: file
   --DestAudioPath                   Path to audio file. Only used if DestAudioType is File. Default: ./audio
 
 Analyzer Options:
@@ -122,7 +122,7 @@ Synthesizer:
   ServiceRegion: eastus
   VoiceName: en-US-AvaMultilingualNeural
   SpeechSynthesisOutputFormat: Raw48KHz16BitMonoPcm
-  DestAudioType: file # file (microphone not supported)
+  DestAudioType: file # file or speaker
   DestAudioPath: ./audio # path to either a folder containing audio or a specific audio file
 
 Analyzer:

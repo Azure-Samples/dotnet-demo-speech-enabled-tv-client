@@ -110,9 +110,7 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
                 throw new InvalidOperationException("Synthesizer not initialized");
             }
 
-//            audioStream = new AudioFile(settings.DestAudioPath);
-            audioStream = new Speaker();
-            
+            audioStream = AudioOutputStreamFactory.Create(settings);          
             using (var speechSynthesizer = new SpeechSynthesizer(config, null))
             {
                 var tokenRenewTask = StartTokenRenewTask(source.Token, speechSynthesizer);

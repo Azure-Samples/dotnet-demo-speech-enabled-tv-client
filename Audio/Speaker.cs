@@ -20,15 +20,26 @@ namespace SpeechEnabledCoPilot.Audio
         PortAudioSharp.Stream? stream;
         bool isPlaying = false;
         private object syncLock = new object();
-
+        int playbackFrequency;
         BlockingCollection<byte[]> dataItems = new BlockingCollection<byte[]>();
 
+        public static Dictionary<string, int> AudioTable = new Dictionary<string, int>
+        {
+                {"Raw8Khz16BitMonoPcm", 8000},
+                {"Raw16Khz16BitMonoPcm", 16000},
+                {"Raw24Khz16BitMonoPcm", 24000},
+                {"Raw48Khz16BitMonoPcm", 48000},
+        };
         /// <summary>
         /// Initializes a new instance of the <see cref="Speaker"/> class.
         /// </summary>
-        public Speaker()
+        public Speaker(string outputFormat)
         {
             // Console.WriteLine(PortAudio.VersionInfo.versionText);
+            if (!AudioTable.TryGetValue(outputFormat, out playbackFrequency)) {
+                Console.WriteLine("WARNING {outputFormat} not supported using 48K linear 16bit PCM");
+                playbackFrequency = 48000;
+            }
             try
             {
                 /// Initialize port audio
@@ -55,7 +66,7 @@ namespace SpeechEnabledCoPilot.Audio
             }
             catch (System.Exception e)
             {
-                Console.WriteLine($"Error initializing microphone: {e.Message}");
+                Console.WriteLine($"Error initializing speaker: {e.Message}");
             }
         }
 
@@ -89,7 +100,7 @@ namespace SpeechEnabledCoPilot.Audio
                 if (dataItems.Count == 0)
                 {
                     // Play some silence while we wait for data
-                    int sizeInBytes = expected * 2;
+                    int sizeInBytes = expected * sizeof(Int16);
                     Marshal.Copy(new byte[sizeInBytes], 0, output, sizeInBytes);
                     return StreamCallbackResult.Continue;
                 }
@@ -102,7 +113,7 @@ namespace SpeechEnabledCoPilot.Audio
                     {
                         byte[] audio = dataItems.Take();
                         Marshal.Copy(audio, 0, output, audio.Length);
-                        i+= audio.Length/2;
+                        i+= audio.Length/sizeof(Int16); 
                     }
                 }
                 if (dataItems.Count == 0) { // If we're done we're done
@@ -141,8 +152,8 @@ namespace SpeechEnabledCoPilot.Audio
 
                     try
                     {
-                        stream = new PortAudioSharp.Stream(inParams: null, outParams: param, sampleRate: 48000,
-                            framesPerBuffer: 4800,//2560,
+                        stream = new PortAudioSharp.Stream(inParams: null, outParams: param, sampleRate: playbackFrequency,
+                            framesPerBuffer: (uint)(playbackFrequency / 10),// 100ms intervals
                             streamFlags: StreamFlags.ClipOff,
                             callback: onPlay,
                             userData: IntPtr.Zero
