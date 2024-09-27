@@ -23,25 +23,29 @@ namespace SpeechEnabledCoPilot.Audio
         int playbackFrequency;
         BlockingCollection<byte[]> dataItems = new BlockingCollection<byte[]>();
 
-        public static Dictionary<string, int> AudioTable = new Dictionary<string, int>
+        private readonly Dictionary<string, int> supportedAudioFormats = new Dictionary<string, int>
         {
-                {"Raw8Khz16BitMonoPcm", 8000},
-                {"Raw16Khz16BitMonoPcm", 16000},
-                {"Raw24Khz16BitMonoPcm", 24000},
-                {"Raw48Khz16BitMonoPcm", 48000},
+            {"Raw8Khz16BitMonoPcm", 8000},
+            {"Raw16Khz16BitMonoPcm", 16000},
+            {"Raw22050Hz16BitMonoPcm", 22050},
+            {"Raw24Khz16BitMonoPcm", 24000},
+            {"Raw44100Hz16BitMonoPcm", 4100},
+            {"Raw48Khz16BitMonoPcm", 48000},
         };
+
         /// <summary>
         /// Initializes a new instance of the <see cref="Speaker"/> class.
         /// </summary>
         public Speaker(string outputFormat)
         {
-            // Console.WriteLine(PortAudio.VersionInfo.versionText);
-            if (!AudioTable.TryGetValue(outputFormat, out playbackFrequency)) {
-                Console.WriteLine("WARNING {outputFormat} not supported using 48K linear 16bit PCM");
-                playbackFrequency = 48000;
-            }
+            // Console.WriteLine(PortAudio.VersionInfo.versionText);            
             try
             {
+                if (!supportedAudioFormats.TryGetValue(outputFormat, out playbackFrequency)) {
+                    Console.WriteLine("WARNING {outputFormat} not supported.  Defaulting to 48K linear 16bit PCM");
+                    playbackFrequency = 48000;
+                }
+
                 /// Initialize port audio
                 PortAudio.Initialize();
 
@@ -152,8 +156,9 @@ namespace SpeechEnabledCoPilot.Audio
 
                     try
                     {
-                        stream = new PortAudioSharp.Stream(inParams: null, outParams: param, sampleRate: playbackFrequency,
-                            framesPerBuffer: (uint)(playbackFrequency / 10),// 100ms intervals
+                        stream = new PortAudioSharp.Stream(inParams: null, outParams: param, 
+                            sampleRate: playbackFrequency,
+                            framesPerBuffer: (uint)(playbackFrequency / 10), // 100ms intervals
                             streamFlags: StreamFlags.ClipOff,
                             callback: onPlay,
                             userData: IntPtr.Zero
