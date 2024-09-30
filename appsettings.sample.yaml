@@ -25,7 +25,7 @@ Synthesizer:
   ServiceRegion: eastus
   VoiceName: en-US-AvaMultilingualNeural
   SpeechSynthesisOutputFormat: Raw22050Hz16BitMonoPcm
-  DestAudioType: file # file (microphone not supported)
+  DestAudioType: file # file or speaker
   DestAudioPath: ./audio # path to either a folder containing audio or a specific audio file
 
 Analyzer:
