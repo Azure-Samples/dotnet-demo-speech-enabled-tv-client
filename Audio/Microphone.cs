@@ -18,6 +18,39 @@ namespace SpeechEnabledCoPilot.Audio
         PortAudioSharp.Stream? stream;
         bool isRecording = false;
         private object syncLock = new object();
+        const int FRAME_SIZE_MS = 20;
+        const int LEADING_SILENCE_WINDOW_MS = 120;
+        const int SOS_WINDOW_MS = 220;
+        const int EOS_WINDOW_MS = 500;
+        const int DEFAULT_COMPLEXITY = 3;
+        const int SENSITIVITY = 20;
+        const int AUDIO_BUFFER_SIZE = 50 * 2;
+
+        static IntPtr opusVad;
+        static Queue<short[]> audioBuffer;
+        static bool connectionReady = true;
+        static bool canStreamAudio = true;
+        static bool sosDetected;
+        static bool eosDetected;
+        static int sosPosition;
+        static int eosPosition;
+        static BinaryWriter binWriter;
+
+        // Callback handlers
+        static void OnStartOfSpeech(IntPtr ptr, uint pos)
+        {
+            Console.WriteLine("OpusVad Start SpeechEvent {0:D}ms", pos);
+            sosDetected = true;
+            sosPosition = (int)pos;
+        }
+
+        static void OnEndOfSpeech(IntPtr ptr, uint pos)
+        {
+            Console.WriteLine("OpusVad End SpeechEvent {0:D}ms", pos);
+            eosDetected = true;
+            eosPosition = (int)pos;
+        }
+
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Microphone"/> class.
@@ -47,6 +80,29 @@ namespace SpeechEnabledCoPilot.Audio
                 param.sampleFormat = SampleFormat.Float32;
                 param.suggestedLatency = info.defaultLowInputLatency;
                 param.hostApiSpecificStreamInfo = IntPtr.Zero;
+
+                // Configure VAD options
+                var options = new OpusVADWrapper.OpusVADOptions
+                {
+                    ctx = IntPtr.Zero,
+                    complexity = DEFAULT_COMPLEXITY,
+                    bitRateType = OpusVADWrapper.OPUSVAD_BIT_RATE_TYPE_CVBR,
+                    sos = SOS_WINDOW_MS,
+                    eos = EOS_WINDOW_MS,
+                    speechDetectionSensitivity = SENSITIVITY,
+                    onSOS = Marshal.GetFunctionPointerForDelegate((OpusVADWrapper.OpusVadCallback)OnStartOfSpeech),
+                    onEOS = Marshal.GetFunctionPointerForDelegate((OpusVADWrapper.OpusVadCallback)OnEndOfSpeech)
+                };
+
+                int error;
+                opusVad = OpusVADWrapper.opusvad_create(out error, ref options);
+
+                if (error != OpusVADWrapper.OPUSVAD_OK)
+                {
+                    Console.WriteLine("Failed to create OpusVAD. Error: " + error);
+                    return;
+                }
+
             }
             catch (System.Exception e)
             {
