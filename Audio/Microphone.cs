@@ -82,22 +82,22 @@ namespace SpeechEnabledCoPilot.Audio
                 param.hostApiSpecificStreamInfo = IntPtr.Zero;
 
                 // Configure VAD options
-                var options = new OpusVADWrapper.OpusVADOptions
+                var options = new OpusVAD.OpusVADOptions
                 {
                     ctx = IntPtr.Zero,
                     complexity = DEFAULT_COMPLEXITY,
-                    bitRateType = OpusVADWrapper.OPUSVAD_BIT_RATE_TYPE_CVBR,
+                    bitRateType = OpusVAD.OPUSVAD_BIT_RATE_TYPE_CVBR,
                     sos = SOS_WINDOW_MS,
                     eos = EOS_WINDOW_MS,
                     speechDetectionSensitivity = SENSITIVITY,
-                    onSOS = Marshal.GetFunctionPointerForDelegate((OpusVADWrapper.OpusVadCallback)OnStartOfSpeech),
-                    onEOS = Marshal.GetFunctionPointerForDelegate((OpusVADWrapper.OpusVadCallback)OnEndOfSpeech)
+                    onSOS = Marshal.GetFunctionPointerForDelegate((OpusVAD.OpusVadCallback)OnStartOfSpeech),
+                    onEOS = Marshal.GetFunctionPointerForDelegate((OpusVAD.OpusVadCallback)OnEndOfSpeech)
                 };
 
                 int error;
-                opusVad = OpusVADWrapper.opusvad_create(out error, ref options);
+                opusVad = OpusVAD.opusvad_create(out error, ref options);
 
-                if (error != OpusVADWrapper.OPUSVAD_OK)
+                if (error != OpusVAD.OPUSVAD_OK)
                 {
                     Console.WriteLine("Failed to create OpusVAD. Error: " + error);
                     return;
@@ -147,14 +147,14 @@ namespace SpeechEnabledCoPilot.Audio
                 if (handler != null)
                 {
                     handler.onAudioData(audioData);
-                    int frameSamples = OpusVADWrapper.opusvad_get_frame_size(opusVad);
+                    int frameSamples = OpusVAD.opusvad_get_frame_size(opusVad);
                     int frameBytes = frameSamples * 2;
 
                     for (int i=0; i<=((audioData.Length/2)-frameBytes); i+=frameBytes) {
                         ArraySegment<byte> segment = new ArraySegment<byte>(audioData, i, i+frameBytes);
-                        int result = OpusVADWrapper.opusvad_process_audio(opusVad, segment.ToArray(), frameSamples);
+                        int result = OpusVAD.opusvad_process_audio(opusVad, segment.ToArray(), frameSamples);
 
-                        if (result != OpusVADWrapper.OPUSVAD_OK)
+                        if (result != OpusVAD.OPUSVAD_OK)
                         {
                             Console.WriteLine("Error processing frame. Error: " + result);
                         }

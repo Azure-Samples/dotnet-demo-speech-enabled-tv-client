@@ -279,7 +279,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
         public void onSpeechStartDetected(string sessionId, long offset)
         {
-            Console.WriteLine($"[{sessionId}] Speech start detected: offset = {offset / 10000}");
+            Console.WriteLine($"[{sessionId}] Speech start detected: offset = {offset / 0000}");
         }
 
         public void onSpeechEndDetected(string sessionId, long offset)
