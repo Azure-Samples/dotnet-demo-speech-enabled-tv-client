@@ -21,7 +21,7 @@ namespace SpeechEnabledCoPilot.Audio
         const int FRAME_SIZE_MS = 20;
         const int LEADING_SILENCE_WINDOW_MS = 120;
         const int SOS_WINDOW_MS = 20;
-        const int EOS_WINDOW_MS = 100;
+        const int EOS_WINDOW_MS = 300;
         const int DEFAULT_COMPLEXITY = 3;
         const int SENSITIVITY = 20;
         const int AUDIO_BUFFER_SIZE = 50 * 2;
