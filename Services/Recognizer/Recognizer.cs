@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
+using System.Runtime.InteropServices;
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
 using Azure;
@@ -39,6 +40,39 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
         // Authorization token expires every 10 minutes. Renew it every 9 minutes.
         private TimeSpan RefreshTokenDuration = TimeSpan.FromMinutes(9);
+
+        const int FRAME_SIZE_MS = 20;
+        const int LEADING_SILENCE_WINDOW_MS = 120;
+        const int SOS_WINDOW_MS = 20;
+        const int EOS_WINDOW_MS = 200;
+        const int DEFAULT_COMPLEXITY = 3;
+        const int SENSITIVITY = 20;
+        const int AUDIO_BUFFER_SIZE = 50 * 2;
+
+        static IntPtr opusVad;
+        static Queue<short[]> audioBuffer;
+        static bool connectionReady = true;
+        static bool canStreamAudio = true;
+        static bool sosDetected;
+        static bool eosDetected;
+        static int sosPosition;
+        static int eosPosition;
+        static BinaryWriter binWriter;
+
+        // Callback handlers
+        static void OnStartOfSpeech(IntPtr ptr, uint pos)
+        {
+            Console.WriteLine("OpusVad Start SpeechEvent {0:D}ms", pos);
+            sosDetected = true;
+            sosPosition = (int)pos;
+        }
+
+        static void OnEndOfSpeech(IntPtr ptr, uint pos)
+        {
+            Console.WriteLine("OpusVad End SpeechEvent {0:D}ms", pos);
+            eosDetected = true;
+            eosPosition = (int)pos;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Recognizer"/> class.
@@ -78,6 +112,28 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
             // Initialize the recognizer.
             _recognizer = new SpeechRecognizer(config, audioConfig);
+
+            // Configure VAD options
+            var options = new OpusVAD.OpusVADOptions
+            {
+                ctx = IntPtr.Zero,
+                complexity = DEFAULT_COMPLEXITY,
+                bitRateType = OpusVAD.OPUSVAD_BIT_RATE_TYPE_CVBR,
+                sos = SOS_WINDOW_MS,
+                eos = EOS_WINDOW_MS,
+                speechDetectionSensitivity = SENSITIVITY,
+                onSOS = Marshal.GetFunctionPointerForDelegate((OpusVAD.OpusVadCallback)OnStartOfSpeech),
+                onEOS = Marshal.GetFunctionPointerForDelegate((OpusVAD.OpusVadCallback)OnEndOfSpeech)
+            };
+
+            int error;
+            opusVad = OpusVAD.opusvad_create(out error, ref options);
+
+            if (error != OpusVAD.OPUSVAD_OK)
+            {
+                Console.WriteLine("Failed to create OpusVAD. Error: " + error);
+                return;
+            }
 
             initialized = true;
         }
@@ -265,6 +321,20 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             if (inputStream != null) {
                 inputStream.Write(data, data.Length);
             }
+
+            int frameSamples = OpusVAD.opusvad_get_frame_size(opusVad);
+            int frameBytes = frameSamples * 2;
+
+            for (int i=0; i<=((data.Length/2)-frameBytes); i+=frameBytes) {
+                ArraySegment<byte> segment = new ArraySegment<byte>(data, i, i+frameBytes);
+                int result = OpusVAD.opusvad_process_audio(opusVad, segment.ToArray(), frameSamples);
+
+                if (result != OpusVAD.OPUSVAD_OK)
+                {
+                    Console.WriteLine("Error processing frame. Error: " + result);
+                }
+            }
+
         }
 
         public void onRecognitionStarted(string sessionId)
