@@ -44,7 +44,7 @@ public class OpusVADWrapper
     public static extern int opusvad_get_max_buffer_samples(IntPtr vad);
 
     [DllImport("../../../Audio/libopusvad.dylib", CallingConvention = CallingConvention.Cdecl)]
-    public static extern int opusvad_process(IntPtr vad, IntPtr pcm, int numSamples);
+    public static extern int opusvad_process_audio(IntPtr vad, byte[] pcm, int numSamples);
 
     [DllImport("../../../Audio/libopusvad.dylib", CallingConvention = CallingConvention.Cdecl)]
     public static extern int opusvad_get_vad_result(IntPtr vad);

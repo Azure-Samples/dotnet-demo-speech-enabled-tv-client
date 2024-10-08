@@ -20,8 +20,8 @@ namespace SpeechEnabledCoPilot.Audio
         private object syncLock = new object();
         const int FRAME_SIZE_MS = 20;
         const int LEADING_SILENCE_WINDOW_MS = 120;
-        const int SOS_WINDOW_MS = 220;
-        const int EOS_WINDOW_MS = 500;
+        const int SOS_WINDOW_MS = 20;
+        const int EOS_WINDOW_MS = 100;
         const int DEFAULT_COMPLEXITY = 3;
         const int SENSITIVITY = 20;
         const int AUDIO_BUFFER_SIZE = 50 * 2;
@@ -147,6 +147,18 @@ namespace SpeechEnabledCoPilot.Audio
                 if (handler != null)
                 {
                     handler.onAudioData(audioData);
+                    int frameSamples = OpusVADWrapper.opusvad_get_frame_size(opusVad);
+                    int frameBytes = frameSamples * 2;
+
+                    for (int i=0; i<=((audioData.Length/2)-frameBytes); i+=frameBytes) {
+                        ArraySegment<byte> segment = new ArraySegment<byte>(audioData, i, i+frameBytes);
+                        int result = OpusVADWrapper.opusvad_process_audio(opusVad, segment.ToArray(), frameSamples);
+
+                        if (result != OpusVADWrapper.OPUSVAD_OK)
+                        {
+                            Console.WriteLine("Error processing frame. Error: " + result);
+                        }
+                    }
                 }
                 return StreamCallbackResult.Continue;
             }
