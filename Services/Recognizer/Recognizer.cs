@@ -40,6 +40,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
         // Authorization token expires every 10 minutes. Renew it every 9 minutes.
         private TimeSpan RefreshTokenDuration = TimeSpan.FromMinutes(9);
+        private static string sId = "00000000-0000-0000-0000-000000000000";
 
         const int FRAME_SIZE_MS = 20;
         const int LEADING_SILENCE_WINDOW_MS = 120;
@@ -50,7 +51,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         const int AUDIO_BUFFER_SIZE = 50 * 2;
 
         static IntPtr opusVad;
-        static Queue<short[]> audioBuffer;
+        static Queue<byte[]> audioBuffer = new Queue<byte[]>();
         static bool connectionReady = true;
         static bool canStreamAudio = true;
         static bool sosDetected;
@@ -62,14 +63,14 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         // Callback handlers
         static void OnStartOfSpeech(IntPtr ptr, uint pos)
         {
-            Console.WriteLine("OpusVad Start SpeechEvent {0:D}ms", pos);
+            Console.WriteLine($"[{sId}] OpusVad Start SpeechEvent {pos}ms");
             sosDetected = true;
             sosPosition = (int)pos;
         }
 
         static void OnEndOfSpeech(IntPtr ptr, uint pos)
         {
-            Console.WriteLine("OpusVad End SpeechEvent {0:D}ms", pos);
+            Console.WriteLine($"[{sId}] OpusVad End SpeechEvent {pos}ms");
             eosDetected = true;
             eosPosition = (int)pos;
         }
@@ -194,7 +195,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             {
                 handler = this;
             }
-
+            sosDetected = eosDetected = false;
             audioStream = new Microphone();
             audioStream.Start(this);
 
@@ -317,28 +318,66 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
         public void onAudioData(byte[] data)
         {
-            // Push audio data to the input stream.
-            if (inputStream != null) {
-                inputStream.Write(data, data.Length);
-            }
-
+            // First push audio data to OpusVAD in OpusVAD frame size chunks
             int frameSamples = OpusVAD.opusvad_get_frame_size(opusVad);
             int frameBytes = frameSamples * 2;
-
             for (int i=0; i<=((data.Length/2)-frameBytes); i+=frameBytes) {
                 ArraySegment<byte> segment = new ArraySegment<byte>(data, i, i+frameBytes);
                 int result = OpusVAD.opusvad_process_audio(opusVad, segment.ToArray(), frameSamples);
-
                 if (result != OpusVAD.OPUSVAD_OK)
                 {
-                    Console.WriteLine("Error processing frame. Error: " + result);
+                    Console.WriteLine($"[{sId}] Error processing frame. Error: " + result);
                 }
             }
-
+            // Next buffer audio data for later until OpusVAD sees speech
+            if (!sosDetected) {
+                audioBuffer.Enqueue(data);
+            }
+            // When OpusVAD sees StartOfSpeech, start with streaming some of the buffered audio data
+            else if (sosDetected && audioBuffer.Count > 0)
+            {
+                // See how many sample in the buffer
+                int totalSamplesBuffered = audioBuffer.Count * (data.Length/2);
+                // We discard those that came before StartOfSpeech
+                int discardSamples = totalSamplesBuffered - ((sosPosition / 20) * frameSamples);
+                // Console.WriteLine($"[{sId}] Total samples buffered " + totalSamplesBuffered + " Discarding " + discardSamples + " samples");
+                // How many buffers is that?
+                int discardCount = discardSamples / data.Length;
+                // Console.WriteLine($"[{sId}] Discarding " + discardSamples + " samples " + discardCount + " buffers");
+                while (audioBuffer.Count > 0)
+                {
+                    // Keep dequeueing until we've discarded enough and then start streaming
+                    byte[] audioData = audioBuffer.Dequeue();
+                    if (--discardCount <= 0) {
+                        if (inputStream != null) {
+                            inputStream.Write(audioData, audioData.Length);
+                        }
+                    }
+                }
+                // If there's also a live buffer here don't forget it
+                if (inputStream != null) {
+                    inputStream.Write(data, data.Length);
+                }
+            }
+            // Finally streaming live audio data
+            else
+            {
+                if (inputStream != null) {
+                    inputStream.Write(data, data.Length);
+                }
+            }
+            if (eosDetected)
+            {
+                // We're done here
+                if (inputStream != null) {
+                    inputStream.Close();
+                }
+            }
         }
 
         public void onRecognitionStarted(string sessionId)
         {
+            sId = sessionId;
             Console.WriteLine($"[{sessionId}] Recognition started");
         }
 

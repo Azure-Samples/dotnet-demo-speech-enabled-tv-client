@@ -127,7 +127,7 @@ namespace SpeechEnabledCoPilot.Audio
             }
             catch (System.Exception e)
             {
-                Console.WriteLine($"Error recording audio: {e.Message}");
+                Console.WriteLine($"Error playing audio: {e.Message}");
                 return StreamCallbackResult.Complete;
             }
         }
