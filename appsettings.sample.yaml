@@ -1,5 +1,6 @@
 App:
   KeyVaultUri: https://YOUR_AZURE_KEYVAULT.vault.azure.net
+  AppInsightsConnectionString: YOUR_APP_INSIGHTS_CONNECTION_STRING
   LogLevel: INFO # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 Bot:
@@ -19,6 +20,7 @@ Recognizer:
   InitialSilenceTimeoutMs: 10000 # in milliseconds
   EndSilenceTimeoutMs: 1200 # in milliseconds
   StablePartialResultThreshold: 2
+  CaptureAudio: false # enable to capture audio to file for debug
 
 Synthesizer: 
   SubscriptionKey: YOUR_AZURE_SPEECH_KEY

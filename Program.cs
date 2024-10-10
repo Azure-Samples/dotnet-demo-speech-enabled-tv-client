@@ -193,10 +193,11 @@ namespace SpeechEnabledCoPilot
             Console.WriteLine("Usage: dotnet run [options]");
             Console.WriteLine();
             Console.WriteLine("Options:");
-            Console.WriteLine("  -h, --help        Show this usage message");
-            Console.WriteLine($"  --ConfigPath      Set path to configuration file. Default: {AppSettings.Defaults.ConfigPath}");
-            Console.WriteLine($"  --LogLevel        Set log level [DEBUG, INFO, WARNING, ERROR, CRITICAL]. Default: {AppSettings.Defaults.LogLevel}");
-            Console.WriteLine($"  --KeyVaultUri     Set Azure Key Vault URI. Default: {AppSettings.Defaults.KeyVaultUri}");
+            Console.WriteLine("  -h, --help                        Show this usage message");
+            Console.WriteLine($"  --ConfigPath                      Set path to configuration file. Default: {AppSettings.Defaults.ConfigPath}");
+            Console.WriteLine($"  --LogLevel                        Set log level [DEBUG, INFO, WARNING, ERROR, CRITICAL]. Default: {AppSettings.Defaults.LogLevel}");
+            Console.WriteLine($"  --AppInsightsConnectionString     Set Azure App Insights connection string. Default: {AppSettings.Defaults.AppInsightsConnectionString}");
+            Console.WriteLine($"  --KeyVaultUri                     Set Azure Key Vault URI. Default: {AppSettings.Defaults.KeyVaultUri}");
             Console.WriteLine();
             Console.WriteLine("Recognizer Options:");
             Console.WriteLine($"  --SubscriptionKey                 Azure Speech Service subscription key. Default: {RecognizerSettings.Defaults.SubscriptionKey}");
@@ -208,6 +209,7 @@ namespace SpeechEnabledCoPilot
             Console.WriteLine($"  --InitialSilenceTimeoutMs         Initial silence timeout in milliseconds. Default: {RecognizerSettings.Defaults.InitialSilenceTimeoutMs}");
             Console.WriteLine($"  --EndSilenceTimeoutMs             End silence timeout in milliseconds. Default: {RecognizerSettings.Defaults.EndSilenceTimeoutMs}");
             Console.WriteLine($"  --StablePartialResultThreshold    Stable partial result threshold. Default: {RecognizerSettings.Defaults.StablePartialResultThreshold}");
+            Console.WriteLine($"  --CaptureAudio                    Enable to capture audio to file for debug. Default: {RecognizerSettings.Defaults.CaptureAudio}");
             Console.WriteLine();
             Console.WriteLine("Synthesizer Options:");
             Console.WriteLine($"  --SubscriptionKey                 Azure Speech Service subscription key. Default: {SynthesizerSettings.Defaults.SubscriptionKey}");

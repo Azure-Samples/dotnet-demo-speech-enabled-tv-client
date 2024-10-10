@@ -54,10 +54,11 @@ Enter your choice:
 Usage: dotnet run [options]
 
 Options:
-  -h, --help        Show this usage message
-  --ConfigPath      Set path to configuration file. Default: appsettings.yaml
-  --LogLevel        Set log level [DEBUG, INFO, WARNING, ERROR, CRITICAL]. Default: INFO
-  --KeyVaultUri     Set Azure Key Vault URI. Default: 
+  -h, --help                        Show this usage message
+  --ConfigPath                      Set path to configuration file. Default: appsettings.yaml
+  --LogLevel                        Set log level [DEBUG, INFO, WARNING, ERROR, CRITICAL]. Default: INFO
+  --AppInsightsConnectionString     Set Azure App Insights connection string. Default: 
+  --KeyVaultUri                     Set Azure Key Vault URI. Default: 
 
 Recognizer Options:
   --SubscriptionKey                 Azure Speech Service subscription key. Default: YOUR_SUBSCRIPTION_KEY
@@ -97,6 +98,7 @@ Bot Options:
 ```yaml
 App:
   KeyVaultUri: https://YOUR_AZURE_KEYVAULT.vault.azure.net
+  AppInsightsConnectionString: YOUR_APP_INSIGHTS_CONNECTION_STRING
   LogLevel: INFO # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 Bot:
@@ -116,6 +118,7 @@ Recognizer:
   InitialSilenceTimeoutMs: 10000 # in milliseconds
   EndSilenceTimeoutMs: 1200 # in milliseconds
   StablePartialResultThreshold: 2
+  CaptureAudio: false # enable to capture audio to file for debug
 
 Synthesizer: 
   SubscriptionKey: YOUR_AZURE_SPEECH_KEY
