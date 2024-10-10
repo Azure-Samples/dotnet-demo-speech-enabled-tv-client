@@ -19,6 +19,7 @@ namespace SpeechEnabledCoPilot.Models
             public const string ConfigPath = "appsettings.yaml";
             public const string LogLevel = "INFO";
             public const string KeyVaultUri = null;
+            public const string AppInsightsConnectionString = null;
         }
 
         private static readonly string ENV_PREFIX = "AILDEMO_";
@@ -29,6 +30,7 @@ namespace SpeechEnabledCoPilot.Models
         public string ConfigPath { get; set; } = Defaults.ConfigPath;
         public string LogLevel { get; set; } = Defaults.LogLevel;
         public string? KeyVaultUri { get; set; } = Defaults.KeyVaultUri;
+        public string? AppInsightsConnectionString { get; set; } = Defaults.AppInsightsConnectionString;
 
         public RecognizerSettings recognizerSettings { get; set; } = new RecognizerSettings();
         public SynthesizerSettings synthesizerSettings { get; set; } = new SynthesizerSettings();
