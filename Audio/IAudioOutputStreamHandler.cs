@@ -11,11 +11,13 @@ namespace SpeechEnabledCoPilot.Audio
         /// Called when playing has started.
         /// </summary>
         /// <param name="destination">The destination of the audio output stream.</param>
-        void onPlayingStarted(string destination);
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        void onPlayingStarted(string destination, string sessionId = "");
 
         /// <summary>
         /// Called when playing has stopped.
         /// </summary>
-        void onPlayingStopped();
+        /// <param name="sessionId">The session ID associated with this stop request.</param>
+        void onPlayingStopped(string sessionId = "");
     }
 }

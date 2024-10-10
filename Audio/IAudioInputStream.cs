@@ -8,7 +8,8 @@ namespace SpeechEnabledCoPilot.Audio {
         /// Starts the audio input stream.
         /// </summary>
         /// <param name="handler">The audio input stream handler.</param>
-        void Start(IAudioInputStreamHandler handler);
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        void Start(IAudioInputStreamHandler handler, string sessionId = "");
         
         /// <summary>
         /// Stops the audio input stream.

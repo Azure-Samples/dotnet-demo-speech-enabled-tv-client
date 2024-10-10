@@ -11,6 +11,7 @@ namespace SpeechEnabledCoPilot.Audio
         /// Receives audio data.
         /// </summary>
         /// <param name="data">The audio data.</param>
-        void onAudioData(byte[] data);
+        /// <param name="sessionId">The session ID associated with this audio data.</param>
+        void onAudioData(string sessionId, byte[] data);
     }
 }
