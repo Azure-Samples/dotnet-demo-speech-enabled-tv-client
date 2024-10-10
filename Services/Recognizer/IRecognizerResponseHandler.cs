@@ -1,5 +1,6 @@
 using Microsoft.CognitiveServices.Speech;
 using System.Text.Json;
+using SpeechEnabledCoPilot.Services.Analyzer;
 
 namespace SpeechEnabledCoPilot.Services.Recognizer
 {
@@ -81,14 +82,6 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// </summary>
         /// <param name="sessionId"></param>
         /// <param name="result"></param>
-        void onAnalysisResult(string sessionId, JsonElement result);
-
-        /// <summary>
-        /// Called when the recognizer has received a CLU analysis error.
-        /// </summary>
-        /// <param name="sessionId"></param>
-        /// <param name="error"></param>
-        /// <param name="details"></param>
-        void onAnalysisError(string sessionId, string error, string details);
+        void onAnalysisResult(string sessionId, AnalyzerResponse result);
     }
 }
