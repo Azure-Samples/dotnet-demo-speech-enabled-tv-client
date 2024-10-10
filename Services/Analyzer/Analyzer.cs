@@ -1,12 +1,15 @@
+using Azure;
+using Azure.Core;
+using Azure.AI.Language.Conversations;
+using Microsoft.Extensions.Logging;
+using SpeechEnabledCoPilot.Models;
+using SpeechEnabledCoPilot.Monitoring;
 using System;
+using System.Diagnostics;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Text.Json;
-using Azure.Core;
-using Azure;
-using Azure.AI.Language.Conversations;
-using SpeechEnabledCoPilot.Models;
 
 namespace SpeechEnabledCoPilot.Services.Analyzer
 {
@@ -15,14 +18,23 @@ namespace SpeechEnabledCoPilot.Services.Analyzer
     /// </summary>
     public class Analyzer
     {
+        ILogger logger;
+        SpeechEnabledCoPilot.Monitoring.Monitor monitor;
+        Activity? activity;
+
         AnalyzerSettings settings = AppSettings.AnalyzerSettings();
         private readonly ConversationAnalysisClient client;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Analyzer"/> class.
         /// </summary>
-        public Analyzer()
+        /// <param name="logger">The logger to use.</param>
+        /// <param name="monitor">The monitor to use.</param>
+        public Analyzer(ILogger logger, SpeechEnabledCoPilot.Monitoring.Monitor monitor)
         {
+            this.logger = logger;
+            this.monitor = monitor.Initialize("CLU");
+
             Uri uri = new Uri($"https://{settings.CluResource}.cognitiveservices.azure.com/");
             if (string.IsNullOrEmpty(settings.CluKey))
             {
@@ -70,19 +82,89 @@ namespace SpeechEnabledCoPilot.Services.Analyzer
         /// Analyzes the input.
         /// </summary>
         /// <param name="input"></param>
-        /// <returns></returns>
-        public JsonElement Analyze(string input)
+        /// <param name="sessionId"></param>
+        /// <returns>AnalyzerResponse</returns>
+        public AnalyzerResponse Analyze(string input, string? sessionId = null)
         {
-            // Use the client to send the input to the Azure CLU service for analysis.
-            Response response = client.AnalyzeConversation(createInput(input));
-            if (response == null || response.ContentStream == null) {
-                throw new Exception("No response from the analyzer.");
-            }
+            using (activity = monitor.activitySource.StartActivity("Analyze"))
+            {
+                if (sessionId != null)
+                {
+                    monitor.SessionId = sessionId;
+                }
+                activity?.SetTag("SessionId", monitor.SessionId);
+                
+                DateTime start = DateTime.Now;
+                Response? response = null;
+                long latency = 0;
+                // Use the client to send the input to the Azure CLU service for analysis.
+                try
+                {
+                    response = client.AnalyzeConversation(createInput(input));
+                    latency = (long)(DateTime.Now - start).TotalMilliseconds;
 
-            // Parse the response to get the result.
-            JsonDocument result = JsonDocument.Parse(response.ContentStream);
-            JsonElement conversationalTaskResult = result.RootElement;
-            return conversationalTaskResult.GetProperty("result");
+                    if (response.IsError) {
+                        ErrorResponse errorResponse = ErrorResponse.FromContentStream(response?.ContentStream);
+
+                        monitor.IncrementRequests("Error");
+                        monitor.RecordLatency(latency, "Error");
+                        
+                        activity?.SetTag("Disposition", "Error");
+                        activity?.SetTag("Status", response?.Status.ToString());
+                        activity?.SetTag("Reason", response?.ReasonPhrase);
+                        activity?.SetTag("ErrorCode", errorResponse.content.error.code);
+                        activity?.SetTag("ErrorMessage", errorResponse.content.error.message);
+
+                        return new AnalyzerResponse(errorResponse);
+                    }
+
+                    if (!response.IsError) {
+                        monitor.IncrementRequests("Success");
+                        monitor.RecordLatency(latency, "Success");
+                        activity?.SetTag("Disposition", "Success");
+
+                        Interpretation interpration = Interpretation.FromJson(response.Content.ToString());
+                        activity?.SetTag("Result", JsonSerializer.Serialize(interpration.result));
+
+                        if (sessionId != null) {
+                            logger.LogInformation($"[{sessionId}] Interpretation: {0}", interpration.result.prediction.topIntent);
+                        } else {
+                            logger.LogInformation("Interpretation: {0}", interpration.result.prediction.topIntent);
+                        }
+                        
+                        return new AnalyzerResponse(interpration);
+                    }
+
+                    return new AnalyzerResponse();
+                }
+                catch (System.Exception ex)
+                {
+                    latency = (long)(DateTime.Now - start).TotalMilliseconds;
+
+                    if (response == null || response.ContentStream == null) {
+                        logger.LogError("Exception returned from the analyzer.");
+                        ErrorResponse errorResponse = ErrorResponse.FromContentStream(ex.Message);
+
+                        monitor.IncrementRequests("Error");
+                        monitor.RecordLatency(latency, "Error");
+
+                        activity?.SetTag("Disposition", "Error");
+                        activity?.SetTag("Status", response?.Status.ToString());
+                        activity?.SetTag("Reason", response?.ReasonPhrase);
+                        activity?.SetTag("ErrorCode", errorResponse.content.error.code);
+                        activity?.SetTag("ErrorMessage", errorResponse.content.error.message);
+                        
+                        return new AnalyzerResponse(errorResponse);
+                    }
+
+                    return new AnalyzerResponse();
+                } 
+                finally {
+                    activity?.SetTag("RequestID", response?.ClientRequestId);
+                    activity?.SetTag("Status", response?.Status.ToString());
+                    activity?.SetTag("Reason", response?.ReasonPhrase);
+                }
+            }
         }
     }
 }
