@@ -560,5 +560,10 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                 logger.LogError($"[{sessionId}] Error: could not parse response");
             }
         }
+
+        public void onAnalysisError(string sessionId, string error, string details)
+        {
+            logger.LogError($"[{sessionId}] Analysis error: {sessionId} with error: {error} and details: {details}");
+        }
     }
 }
