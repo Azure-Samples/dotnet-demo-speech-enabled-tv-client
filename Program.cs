@@ -27,7 +27,11 @@ namespace SpeechEnabledCoPilot
         public void Recognize()
         {
             Recognizer recognizer = new Recognizer();
-            recognizer.Recognize(null, null).Wait();
+
+            for (int i = 0; i < 3; i++) {
+                Console.WriteLine($"Recognizing {i + 1} of 3...");
+                recognizer.Recognize(null, null).Wait();
+            }
         }
 
         // NLU only
