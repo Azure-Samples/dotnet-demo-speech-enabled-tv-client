@@ -1,4 +1,5 @@
 using SpeechEnabledCoPilot.Audio;
+using Microsoft.Extensions.Logging;
 
 namespace SpeechEnabledCoPilot.Services.Recognizer
 {
@@ -7,13 +8,24 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
     /// </summary>
     public class Recorder : IAudioInputStreamHandler, IAudioOutputStreamHandler
     {
+        private ILogger logger;
         private IAudioOutputStream? fileOut;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Recorder"/> class.
+        /// </summary>
+        /// <param name="logger">The logger to use.</param>
+        public Recorder(ILogger logger)
+        {
+            this.logger = logger;
+        }
 
         /// <summary>
         /// Called when audio data is received from microphone. Writes audio data to file.
         /// </summary>
-        /// <param name="data"></param>
-        public void onAudioData(byte[] data)
+        /// <param name="sessionId">The session ID associated with this audio data.</param>
+        /// <param name="data">The audio data.</param>
+        public void onAudioData(string sessionId, byte[] data)
         {
             if (fileOut != null) {
                 fileOut.onAudioData(data);
@@ -23,16 +35,18 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// <summary>
         /// Called when the recorder has started.
         /// </summary>
-        /// <param name="destination"></param>
-        public void onPlayingStarted(string destination)
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        /// <param name="destination">The destination of the audio output stream.</param>
+        public void onPlayingStarted(string sessionId, string destination)
         {
-            Console.WriteLine("Recording started. Audio will be saved to " + destination);
+            Console.WriteLine("Recording started. Audio will be streamed to " + destination);
         }
 
         /// <summary>
         /// Called when the recorder has stopped.
         /// </summary>
-        public void onPlayingStopped()
+        /// <param name="sessionId">The session ID associated with this stop request.</param>
+        public void onPlayingStopped(string sessionId)
         {
             Console.WriteLine("Recording stopped");
         }
@@ -43,10 +57,10 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         public void RecordAudio()
         {
             // Initialize microphone input
-            IAudioInputStream microphone = new Microphone();
+            IAudioInputStream microphone = new Microphone(logger);
 
             // Initialize file output
-            fileOut = new AudioFile();
+            fileOut = new AudioFile(logger);
             fileOut.Start(this);
 
             try
