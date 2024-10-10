@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.CognitiveServices.Speech;
 using System.Text.Json;
 using SpeechEnabledCoPilot.Services.Recognizer;
+using SpeechEnabledCoPilot.Services.Analyzer;
 
 namespace SpeechEnabledCoPilot.Services.Bot
 {
@@ -263,8 +264,8 @@ namespace SpeechEnabledCoPilot.Services.Bot
             Console.WriteLine($"Recognition error: {sessionId} with error: {error} and details: {details}");
         }
 
-        public void onAnalysisResult(string sessionId, JsonElement result) {
-            Console.WriteLine($"Analysis result: {result}");
+        public void onAnalysisResult(string sessionId, AnalyzerResponse result) {
+            Console.WriteLine($"Analysis result: {JsonSerializer.Serialize(result)}");
         }
 
         public void onAnalysisError(string sessionId, string error, string details) {
