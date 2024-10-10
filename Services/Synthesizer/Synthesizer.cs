@@ -1,10 +1,14 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
 using SpeechEnabledCoPilot.Models;
 using SpeechEnabledCoPilot.Audio;
+using SpeechEnabledCoPilot.Monitoring;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace SpeechEnabledCoPilot.Services.Synthesizer
 {
@@ -14,6 +18,10 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
     /// </summary>
     class Synthesizer : IAudioOutputStreamHandler
     {
+        ILogger logger;
+        SpeechEnabledCoPilot.Monitoring.Monitor monitor;
+        Activity? activity;
+
         SynthesizerSettings settings = AppSettings.SynthesizerSettings();
 
         private bool initialized = false;
@@ -29,8 +37,11 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
         /// <summary>
         /// Initializes a new instance of the <see cref="Synthesizer"/> class.
         /// </summary>
-        public Synthesizer()
+        public Synthesizer(ILogger logger, SpeechEnabledCoPilot.Monitoring.Monitor monitor)
         {
+            this.logger = logger;
+            this.monitor = monitor.Initialize("TTS");
+
             InitializeAuthToken().Wait();
 
             // Creates an instance of a speech config with 
@@ -43,11 +54,11 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
             }
             catch (Exception)
             {
-                Console.WriteLine("Invalid output format: " + settings.SpeechSynthesisOutputFormat);
-                Console.WriteLine("Defaulting to Raw22050Hz16BitMonoPcm");
+                logger.LogError("Invalid output format: " + settings.SpeechSynthesisOutputFormat);
+                logger.LogWarning("Defaulting to Raw22050Hz16BitMonoPcm");
                 config.SetSpeechSynthesisOutputFormat(SpeechSynthesisOutputFormat.Raw48Khz16BitMonoPcm);
             }
-            System.Console.WriteLine("Generating audio with output format: " + settings.SpeechSynthesisOutputFormat);
+            logger.LogInformation("Generating audio with output format: " + settings.SpeechSynthesisOutputFormat);
 
             // Define the cancellation token in order to stop the periodic renewal 
             // of authorization token after completing recognition.
@@ -77,24 +88,43 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
             switch (speechSynthesisResult.Reason)
             {
                 case ResultReason.SynthesizingAudioCompleted:
-                    Console.WriteLine($"Speech synthesized for text: [{text}]");
+                    monitor.IncrementRequests("Success");
+                    logger.LogInformation($"[{speechSynthesisResult.ResultId}] Speech synthesized for text: [{text}]");
                     break;
-                case ResultReason.Canceled:
+                case ResultReason.Canceled:                    
                     var cancellation = SpeechSynthesisCancellationDetails.FromResult(speechSynthesisResult);
-                    Console.WriteLine($"CANCELED: Reason={cancellation.Reason}");
+                    logger.LogWarning($"[{speechSynthesisResult.ResultId}] CANCELED: Reason={cancellation.Reason}");
+
+                    activity?.AddEvent(new ActivityEvent("Canceled",
+                                        DateTimeOffset.UtcNow,
+                                        new ActivityTagsCollection
+                                        {
+                                            {"Reason", cancellation.Reason},
+                                            {"SessionId", monitor.SessionId}
+                                        }));
+
+                    activity?.SetTag("Disposition", "Error");
+                    activity?.SetTag("Reason", cancellation.Reason);
 
                     if (cancellation.Reason == CancellationReason.Error)
                     {
-                        Console.WriteLine($"CANCELED: ErrorCode={cancellation.ErrorCode}");
-                        Console.WriteLine($"CANCELED: ErrorDetails=[{cancellation.ErrorDetails}]");
-                        Console.WriteLine($"CANCELED: Did you set the speech resource key and region values?");
-                    }
-                    if (audioStream != null) {
-                        audioStream.Stop();
+                        monitor.IncrementRequests("Error");
+                        logger.LogError($"[{speechSynthesisResult.ResultId}] CANCELED: ErrorCode={cancellation.ErrorCode}");
+                        logger.LogError($"[{speechSynthesisResult.ResultId}] CANCELED: ErrorDetails=[{cancellation.ErrorDetails}]");
+                        logger.LogError($"[{speechSynthesisResult.ResultId}] CANCELED: Did you set the speech resource key and region values?");
+
+                        activity?.SetTag("ErrorCode", cancellation.ErrorCode);
+                        activity?.SetTag("Details", cancellation.ErrorDetails);
+                    } else {
+                        monitor.IncrementRequests("Canceled");
                     }
                     break;
                 default:
                     break;
+            }
+
+            if (audioStream != null) {
+                audioStream.Stop();
             }
         }
 
@@ -110,76 +140,136 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
                 throw new InvalidOperationException("Synthesizer not initialized");
             }
 
-            audioStream = AudioOutputStreamFactory.Create(settings);          
-            using (var speechSynthesizer = new SpeechSynthesizer(config, null))
+            using (activity = monitor.activitySource.StartActivity("Synthesize"))
             {
-                var tokenRenewTask = StartTokenRenewTask(source.Token, speechSynthesizer);
+                // Get the start time to measure the total processing time
+                DateTime startTime = DateTime.Now;
+                bool firstAudioReceived = false;
 
-                // Subscribe to events
+                activity?.SetTag("Input", input);
+                activity?.SetTag("VoiceName", settings.VoiceName);
+                activity?.SetTag("OutputFormat", settings.SpeechSynthesisOutputFormat);
 
-                /* Uncomment to enable bookmark events
-                speechSynthesizer.BookmarkReached += (s, e) =>
+                audioStream = AudioOutputStreamFactory.Create(logger, settings);          
+                using (var speechSynthesizer = new SpeechSynthesizer(config, null))
                 {
-                    Console.WriteLine($"BookmarkReached event:" +
-                        $"\r\n\tAudioOffset: {(e.AudioOffset + 5000) / 10000}ms" +
-                        $"\r\n\tText: \"{e.Text}\".");
-                };
-                */
+                    var tokenRenewTask = StartTokenRenewTask(source.Token, speechSynthesizer);
 
-                speechSynthesizer.SynthesisCanceled += (s, e) =>
-                {
-                    Console.WriteLine("SynthesisCanceled event");
-                };
+                    // Subscribe to events
 
-                speechSynthesizer.SynthesisCompleted += (s, e) =>
-                {
-//                    Console.WriteLine($"SynthesisCompleted event:" +
-//                        $"\r\n\tAudioData: {e.Result.AudioData.Length} bytes" +
-//                        $"\r\n\tAudioDuration: {e.Result.AudioDuration}");
-                };
+                    /* Uncomment to enable bookmark events
+                    speechSynthesizer.BookmarkReached += (s, e) =>
+                    {
+                        activity?.AddEvent(new ActivityEvent("BookmarkReached",
+                                            DateTimeOffset.UtcNow,
+                                            new ActivityTagsCollection
+                                            {
+                                                {"SessionId", e.Result.ResultId},
+                                                {"AudioOffsetInMs", (e.AudioOffset + 5000) / 10000},
+                                                {"Text", e.Text}
+                                            }));
+                    };
+                    */
 
-                speechSynthesizer.SynthesisStarted += (s, e) =>
-                {
-                    // Start audio stream processing
-                    audioStream.Start(this);
-                    Console.WriteLine("SynthesisStarted event");
-                };
+                    speechSynthesizer.SynthesisCanceled += (s, e) =>
+                    {
+                        TimeSpan latency = DateTime.Now - startTime;
+                        monitor.RecordLatency((long)latency.TotalMilliseconds, "Canceled");
 
-                speechSynthesizer.Synthesizing += (s, e) =>
-                {
-//                    Console.WriteLine($"Synthesizing event:" +
-//                        $"\r\n\tAudioData: {e.Result.AudioData.Length} bytes");
+                        logger.LogInformation($"[{e.Result.ResultId}] SynthesisCanceled event");
+                    };
 
-                    // Send audio data to audio stream
-                    audioStream.onAudioData(e.Result.AudioData);
-                };
+                    speechSynthesizer.SynthesisCompleted += (s, e) =>
+                    {
+                        logger.LogInformation($"[{e.Result.ResultId}] SynthesisCompleted event");
+                        activity?.AddEvent(new ActivityEvent("SynthesisCompleted",
+                                            DateTimeOffset.UtcNow,
+                                            new ActivityTagsCollection
+                                            {
+                                                {"SessionId", e.Result.ResultId},
+                                                {"AudioDataSize", e.Result.AudioData.Length},
+                                                {"AudioDuration", e.Result.AudioDuration}
+                                            }));
+                    };
 
-                /* Uncomment to enable viseme events
-                speechSynthesizer.VisemeReceived += (s, e) =>
-                {
-                    Console.WriteLine($"VisemeReceived event:" +
-                        $"\r\n\tAudioOffset: {(e.AudioOffset + 5000) / 10000}ms" +
-                        $"\r\n\tVisemeId: {e.VisemeId}");
-                };
-                */
+                    speechSynthesizer.SynthesisStarted += (s, e) =>
+                    {
+                        // Start audio stream processing
+                        audioStream.Start(this);
 
-                /* Uncomment to enable word boundary events
-                speechSynthesizer.WordBoundary += (s, e) =>
-                {
-                    Console.WriteLine($"WordBoundary event:" +
-                        // Word, Punctuation, or Sentence
-                        $"\r\n\tBoundaryType: {e.BoundaryType}" +
-                        $"\r\n\tAudioOffset: {(e.AudioOffset + 5000) / 10000}ms" +
-                        $"\r\n\tDuration: {e.Duration}" +
-                        $"\r\n\tText: \"{e.Text}\"" +
-                        $"\r\n\tTextOffset: {e.TextOffset}" +
-                        $"\r\n\tWordLength: {e.WordLength}");
-                };
-                */
+                        logger.LogInformation($"[{e.Result.ResultId}] SynthesisStarted event");
+                        
+                        // Set the session ID for tracking
+                        monitor.SessionId = e.Result.ResultId;
 
-                // Call the Azure TTS service and process the result.
-                var speechSynthesisResult = await speechSynthesizer.SpeakTextAsync(input);
-                OutputSpeechSynthesisResult(speechSynthesisResult, input);
+                        // Log the session start event
+                        activity?.AddEvent(new ActivityEvent("SessionStarted",
+                                            DateTimeOffset.UtcNow,
+                                            new ActivityTagsCollection
+                                            {
+                                                {"SessionId", e.Result.ResultId}
+                                            }));
+                        activity?.SetTag("SessionId", e.Result.ResultId);
+                    };
+
+                    speechSynthesizer.Synthesizing += (s, e) =>
+                    {
+                        if (!firstAudioReceived)
+                        {
+                            firstAudioReceived = true;
+                            TimeSpan latency = DateTime.Now - startTime;
+                            monitor.RecordLatency((long)latency.TotalMilliseconds, "Success");
+                        }
+                        logger.LogInformation($"[{e.Result.ResultId}] Synthesizing event");
+                        activity?.AddEvent(new ActivityEvent("Synthesizing",
+                                            DateTimeOffset.UtcNow,
+                                            new ActivityTagsCollection
+                                            {
+                                                {"SessionId", e.Result.ResultId},
+                                                {"AudioDataLength", e.Result.AudioData.Length}
+                                            }));
+                        // Send audio data to audio stream
+                        audioStream.onAudioData(e.Result.AudioData);
+                    };
+
+                    /* Uncomment to enable viseme events
+                    speechSynthesizer.VisemeReceived += (s, e) =>
+                    {
+                        activity?.AddEvent(new ActivityEvent("VisemeReceived",
+                                            DateTimeOffset.UtcNow,
+                                            new ActivityTagsCollection
+                                            {
+                                                {"SessionId", e.Result.ResultId},
+                                                {"AudioOffsetInMs", (e.AudioOffset + 5000) / 10000},
+                                                {"VisemeId", e.VisemeId}
+                                            }));
+                    };
+                    */
+
+                    /* Uncomment to enable word boundary events
+                    speechSynthesizer.WordBoundary += (s, e) =>
+                    {
+                        activity?.AddEvent(new ActivityEvent("WordBoundary",
+                                            DateTimeOffset.UtcNow,
+                                            new ActivityTagsCollection
+                                            {
+                                                {"SessionId", e.Result.ResultId},
+                                                {"AudioOffsetInMs", (e.AudioOffset + 5000) / 10000},
+                                                {"BoundaryType", e.BoundaryType},
+                                                {"Duration", e.Duration},
+                                                {"Text", e.Text},
+                                                {"TextOffset", e.TextOffset},
+                                                {"WordLength", e.WordLength}
+                                            }));
+                    };
+                    */
+
+                    // Call the Azure TTS service and process the result.
+                    var speechSynthesisResult = await speechSynthesizer.SpeakTextAsync(input);
+                    activity?.SetTag("TotalDurationInMs", (long)(DateTime.Now - startTime).TotalMilliseconds);
+
+                    OutputSpeechSynthesisResult(speechSynthesisResult, input);
+                }
             }
         }
 
@@ -226,18 +316,20 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
         /// <summary>
         /// Called when audio output stream is started.
         /// </summary>
+        /// <param name="sessionId"></param>
         /// <param name="fileName"></param>
-        public void onPlayingStarted(string fileName)
+        public void onPlayingStarted(string sessionId, string fileName)
         {
-            Console.WriteLine($"Playing started. Audio is being saved to {fileName}");
+            logger.LogInformation($"[{monitor.SessionId}] Playing started. Audio is being saved to {fileName}");
         }
 
         /// <summary>
         /// Called when audio output stream is stopped.
         /// </summary>
-        public void onPlayingStopped()
+        /// <param name="sessionId"></param>
+        public void onPlayingStopped(string sessionId)
         {
-            Console.WriteLine("Playing stopped");
+            logger.LogInformation($"[{monitor.SessionId}] Playing stopped");
         }
     }
 }
