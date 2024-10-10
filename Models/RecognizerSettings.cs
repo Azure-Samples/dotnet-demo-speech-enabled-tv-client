@@ -22,6 +22,7 @@ namespace SpeechEnabledCoPilot.Models
             public const int InitialSilenceTimeoutMs = 10000; // in milliseconds
             public const int EndSilenceTimeoutMs = 1200; // in milliseconds
             public const int StablePartialResultThreshold = 2;
+            public const bool CaptureAudio = false;
         }
 
         public string SubscriptionKey { get; set; } = Defaults.SubscriptionKey;
@@ -33,5 +34,6 @@ namespace SpeechEnabledCoPilot.Models
         public int InitialSilenceTimeoutMs { get; set; } = Defaults.InitialSilenceTimeoutMs;
         public int EndSilenceTimeoutMs { get; set; } = Defaults.EndSilenceTimeoutMs;
         public int StablePartialResultThreshold { get; set; } = Defaults.StablePartialResultThreshold;
+        public bool CaptureAudio {get; set; } = Defaults.CaptureAudio;
     }
 }
