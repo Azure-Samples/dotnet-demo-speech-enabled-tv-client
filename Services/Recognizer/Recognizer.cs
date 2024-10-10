@@ -16,13 +16,14 @@ using Azure.Core;
 using SpeechEnabledCoPilot.Audio;
 using SpeechEnabledCoPilot.Services.Analyzer;
 using SpeechEnabledCoPilot.Models;
+using SpeechEnabledCoPilot.Endpointer;
 
 namespace SpeechEnabledCoPilot.Services.Recognizer
 {
     /// <summary>
     /// Represents the speech recognizer.
     /// </summary>
-    public class Recognizer : IRecognizerResponseHandler, IAudioInputStreamHandler
+    public class Recognizer : IRecognizerResponseHandler, IAudioInputStreamHandler, IEndpointerHandler
     {
         RecognizerSettings settings = AppSettings.RecognizerSettings();
 
@@ -37,43 +38,21 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
         private IAudioInputStream? audioStream;
         private PushAudioInputStream? inputStream;
+        private IEndpointer endpointer;
+        private bool isSubscribedToEvents = false;
 
         // Authorization token expires every 10 minutes. Renew it every 9 minutes.
         private TimeSpan RefreshTokenDuration = TimeSpan.FromMinutes(9);
-        private static string sId = "00000000-0000-0000-0000-000000000000";
 
-        const int FRAME_SIZE_MS = 20;
-        const int LEADING_SILENCE_WINDOW_MS = 120;
-        const int SOS_WINDOW_MS = 20;
-        const int EOS_WINDOW_MS = 200;
-        const int DEFAULT_COMPLEXITY = 3;
-        const int SENSITIVITY = 20;
-        const int AUDIO_BUFFER_SIZE = 50 * 2;
+        private string sessionId = "00000000-0000-0000-0000-000000000000";
 
-        static IntPtr opusVad;
-        static Queue<byte[]> audioBuffer = new Queue<byte[]>();
-        static bool connectionReady = true;
-        static bool canStreamAudio = true;
-        static bool sosDetected;
-        static bool eosDetected;
-        static int sosPosition;
-        static int eosPosition;
-        static BinaryWriter binWriter;
+        Queue<byte[]> audioBuffer = new Queue<byte[]>();
+        bool sosDetected;
+        bool eosDetected;
+        int sosPosition;
+        int eosPosition;
 
-        // Callback handlers
-        static void OnStartOfSpeech(IntPtr ptr, uint pos)
-        {
-            Console.WriteLine($"[{sId}] OpusVad Start SpeechEvent {pos}ms");
-            sosDetected = true;
-            sosPosition = (int)pos;
-        }
-
-        static void OnEndOfSpeech(IntPtr ptr, uint pos)
-        {
-            Console.WriteLine($"[{sId}] OpusVad End SpeechEvent {pos}ms");
-            eosDetected = true;
-            eosPosition = (int)pos;
-        }
+        TaskCompletionSource<bool> recognitionTaskCompletionSource = new TaskCompletionSource<bool>();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Recognizer"/> class.
@@ -111,30 +90,9 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             // of authorization token after completing recognition.
             source = new CancellationTokenSource();
 
-            // Initialize the recognizer.
+            // Initialize the recognizer and endpointer.
             _recognizer = new SpeechRecognizer(config, audioConfig);
-
-            // Configure VAD options
-            var options = new OpusVAD.OpusVADOptions
-            {
-                ctx = IntPtr.Zero,
-                complexity = DEFAULT_COMPLEXITY,
-                bitRateType = OpusVAD.OPUSVAD_BIT_RATE_TYPE_CVBR,
-                sos = SOS_WINDOW_MS,
-                eos = EOS_WINDOW_MS,
-                speechDetectionSensitivity = SENSITIVITY,
-                onSOS = Marshal.GetFunctionPointerForDelegate((OpusVAD.OpusVadCallback)OnStartOfSpeech),
-                onEOS = Marshal.GetFunctionPointerForDelegate((OpusVAD.OpusVadCallback)OnEndOfSpeech)
-            };
-
-            int error;
-            opusVad = OpusVAD.opusvad_create(out error, ref options);
-
-            if (error != OpusVAD.OPUSVAD_OK)
-            {
-                Console.WriteLine("Failed to create OpusVAD. Error: " + error);
-                return;
-            }
+            endpointer = new OpusVADEndpointer();
 
             initialized = true;
         }
@@ -187,6 +145,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// <exception cref="InvalidOperationException"></exception>
         public async Task Recognize(Analyzer.Analyzer? analyzer, IRecognizerResponseHandler? handler, string[]? grammarPhrases = null)
         {
+            Console.WriteLine("Recognizing speech...");
             if (!initialized)
             {
                 throw new InvalidOperationException("Recognizer not initialized");
@@ -195,17 +154,27 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             {
                 handler = this;
             }
+
+            Console.WriteLine("Initializing stuff...");
             sosDetected = eosDetected = false;
             audioStream = new Microphone();
+            endpointer = new OpusVADEndpointer();
+            recognitionTaskCompletionSource = new TaskCompletionSource<bool>();
+
+            Console.WriteLine("Starting audio stream...");
+            endpointer.Start(this);
+            Console.WriteLine("Starting endpointer...");
             audioStream.Start(this);
 
             // Creates a speech recognizer using audio config as audio input.
-            // using (var _recognizer = new SpeechRecognizer(config, audioConfig))
-            using (_recognizer)
-            {
+            Console.WriteLine("Starting speech recognizer...");
+            // using (_recognizer)
+            // {
+                Console.WriteLine("Starting token renewal task...");
                 // Run task for token renewal in the background.
                 var tokenRenewTask = StartTokenRenewTask(source.Token, _recognizer);
 
+                Console.WriteLine("Initializing grammar...");
                 // Initialize and set inline grammar if provided.
                 PhraseListGrammar grammarList = PhraseListGrammar.FromRecognizer(_recognizer);
                 grammarList.Clear();
@@ -217,63 +186,74 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                     }
                 }
 
-                // Subscribe to events.
-                _recognizer.SessionStarted += (s, e) => { handler.onRecognitionStarted(e.SessionId); };
-                _recognizer.SessionStopped += (s, e) => { handler.onRecognitionComplete(e.SessionId); };
-                _recognizer.SpeechStartDetected += (s, e) => { handler.onSpeechStartDetected(e.SessionId, (long)e.Offset); };
-                _recognizer.SpeechEndDetected += (s, e) => { handler.onSpeechEndDetected(e.SessionId, (long)e.Offset); };
-                _recognizer.Recognizing += (s, e) => { handler.onRecognitionResult(e.SessionId, (long)e.Offset, e.Result); };
-                _recognizer.Recognized += (s, e) =>
-                {
-                    if (e.Result.Reason == ResultReason.RecognizedSpeech)
+                if (!isSubscribedToEvents) {
+                    Console.WriteLine("Subscribing to events...");
+                    // Subscribe to events.
+                    _recognizer.SessionStarted += (s, e) => { handler.onRecognitionStarted(e.SessionId); };
+                    _recognizer.SessionStopped += (s, e) => { handler.onRecognitionComplete(e.SessionId); };
+                    _recognizer.SpeechStartDetected += (s, e) => { handler.onSpeechStartDetected(e.SessionId, (long)e.Offset); };
+                    _recognizer.SpeechEndDetected += (s, e) => { handler.onSpeechEndDetected(e.SessionId, (long)e.Offset); };
+                    _recognizer.Recognizing += (s, e) => { handler.onRecognitionResult(e.SessionId, (long)e.Offset, e.Result); };
+                    _recognizer.Recognized += (s, e) =>
                     {
-                        handler.onFinalRecognitionResult(e.SessionId, (long)e.Offset, e.Result.Best());
-                        if (analyzer != null)
+                        if (e.Result.Reason == ResultReason.RecognizedSpeech)
                         {
-                            try
+                            handler.onFinalRecognitionResult(e.SessionId, (long)e.Offset, e.Result.Best());
+                            if (analyzer != null)
                             {
-                                handler.onAnalysisResult(e.SessionId, analyzer.Analyze(e.Result.Text));
-                            }
-                            catch (RequestFailedException rfe)
-                            {
-                                handler.onAnalysisError(e.SessionId, $"{rfe.Status}: {rfe.ErrorCode} {rfe.Message}", $"Error analyzing text: {rfe.StackTrace}");
-                            }
-                            catch (Exception ex)
-                            {
-                                handler.onAnalysisError(e.SessionId, $"{ex.GetType().ToString()}: {ex.Message}", $"Error analyzing text: {ex.StackTrace}");
+                                try
+                                {
+                                    handler.onAnalysisResult(e.SessionId, analyzer.Analyze(e.Result.Text));
+                                }
+                                catch (RequestFailedException rfe)
+                                {
+                                    handler.onAnalysisError(e.SessionId, $"{rfe.Status}: {rfe.ErrorCode} {rfe.Message}", $"Error analyzing text: {rfe.StackTrace}");
+                                }
+                                catch (Exception ex)
+                                {
+                                    handler.onAnalysisError(e.SessionId, $"{ex.GetType().ToString()}: {ex.Message}", $"Error analyzing text: {ex.StackTrace}");
+                                }
                             }
                         }
-                    }
-                    else if (e.Result.Reason == ResultReason.NoMatch)
+                        else if (e.Result.Reason == ResultReason.NoMatch)
+                        {
+                            NoMatchDetails noMatchDetails = NoMatchDetails.FromResult(e.Result);
+                            handler.onRecognitionNoMatch(e.SessionId, (long)e.Offset, noMatchDetails.Reason.ToString(), e.Result);
+                        }
+                    };
+                    _recognizer.Canceled += (s, e) =>
                     {
-                        NoMatchDetails noMatchDetails = NoMatchDetails.FromResult(e.Result);
-                        handler.onRecognitionNoMatch(e.SessionId, (long)e.Offset, noMatchDetails.Reason.ToString(), e.Result);
-                    }
-                };
-                _recognizer.Canceled += (s, e) =>
-                {
-                    if (e.Reason == CancellationReason.Error)
-                    {
-                        handler.onRecognitionError(e.SessionId, e.ErrorCode.ToString(), e.ErrorDetails);
-                    }
-                    else
-                    {
-                        handler.onRecognitionCancelled(e.SessionId, (long)e.Offset, CancellationDetails.FromResult(e.Result));
-                    }
-                };
+                        if (e.Reason == CancellationReason.Error)
+                        {
+                            handler.onRecognitionError(e.SessionId, e.ErrorCode.ToString(), e.ErrorDetails);
+                        }
+                        else
+                        {
+                            handler.onRecognitionCancelled(e.SessionId, (long)e.Offset, CancellationDetails.FromResult(e.Result));
+                        }
+                    };
+                    isSubscribedToEvents = true;
+                }
 
-                // Start single-turn recognition with server-side endpoint detection.
-                await _recognizer.RecognizeOnceAsync().ConfigureAwait(false);
-
+                Console.WriteLine("Starting continuous recognition...");
                 // Start continuous recognition - requires client-side logic to determine when to stop.
-                // await recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
-                // Console.WriteLine("Press any key to stop");
-                // Console.ReadKey();
-                // await recognizer.StopContinuousRecognitionAsync().ConfigureAwait(false);
+                await _recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
+
+                Console.WriteLine("Waiting for recognition to complete...");
+                // Wait until End of Speech (EOS) is detected
+                await recognitionTaskCompletionSource.Task.ConfigureAwait(false);
+
+                Console.WriteLine("Recognition complete. Stopping audio stream...");
+                await _recognizer.StopContinuousRecognitionAsync().ConfigureAwait(false);
 
                 // Cancel cancellationToken to stop the token renewal task.
+                endpointer.Stop();
                 source.Cancel();
-            }
+            // }
+        }
+        
+        private void UpdateRecognitionTaskCompletionSource() {
+            recognitionTaskCompletionSource.TrySetResult(true);
         }
 
         // Renews authorization token periodically until cancellationToken is cancelled.
@@ -316,68 +296,78 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             }
         }
 
+        public void OnStartOfSpeech(int position) {
+            Console.WriteLine($"[{sessionId}] Start of speech detected at {position}ms");
+            sosPosition = position;
+            sosDetected = true;
+        }
+
+        public void OnEndOfSpeech(int position) {
+            Console.WriteLine($"[{sessionId}] End of speech detected at {position}ms");
+            eosPosition = position;
+            eosDetected = true;
+
+            // Signal that recognition is ready for completion
+            UpdateRecognitionTaskCompletionSource();
+            recognitionTaskCompletionSource.TrySetResult(true);
+        }
+
+        private void streamAudio(byte[] data) {
+            if (inputStream != null) {
+                inputStream.Write(data, data.Length);
+            }
+        }
+
+        private void streamBufferedAudio(byte[] data) {
+            // How many samples in the buffer?
+            int totalSamplesBuffered = audioBuffer.Count * (data.Length/2);
+            
+            // We discard those that came before StartOfSpeech
+            // TODO: Don't use hardcoded 20ms frame size
+            int discardSamples = totalSamplesBuffered - ((sosPosition / 20) * endpointer.GetFrameSize());
+
+            // How many buffers is that?
+            int discardCount = discardSamples / data.Length;
+
+            while (audioBuffer.Count > 0)
+            {
+                // Keep dequeueing until we've discarded enough and then start streaming
+                byte[] audioData = audioBuffer.Dequeue();
+                if (--discardCount <= 0) {
+                    streamAudio(audioData);
+                }
+            }
+        }
+
         public void onAudioData(byte[] data)
         {
-            // First push audio data to OpusVAD in OpusVAD frame size chunks
-            int frameSamples = OpusVAD.opusvad_get_frame_size(opusVad);
-            int frameBytes = frameSamples * 2;
-            for (int i=0; i<=((data.Length/2)-frameBytes); i+=frameBytes) {
-                ArraySegment<byte> segment = new ArraySegment<byte>(data, i, i+frameBytes);
-                int result = OpusVAD.opusvad_process_audio(opusVad, segment.ToArray(), frameSamples);
-                if (result != OpusVAD.OPUSVAD_OK)
-                {
-                    Console.WriteLine($"[{sId}] Error processing frame. Error: " + result);
-                }
+            // If both StartOfSpeech and EndOfSpeech are detected, we're done
+            if (sosDetected && eosDetected) {
+                return;
             }
-            // Next buffer audio data for later until OpusVAD sees speech
+
+            // Run audio through endpointer
+            endpointer.ProcessAudio(data);
+            
             if (!sosDetected) {
+                // Buffer audio data while waiting for StartOfSpeech
                 audioBuffer.Enqueue(data);
-            }
-            // When OpusVAD sees StartOfSpeech, start with streaming some of the buffered audio data
-            else if (sosDetected && audioBuffer.Count > 0)
-            {
-                // See how many sample in the buffer
-                int totalSamplesBuffered = audioBuffer.Count * (data.Length/2);
-                // We discard those that came before StartOfSpeech
-                int discardSamples = totalSamplesBuffered - ((sosPosition / 20) * frameSamples);
-                // Console.WriteLine($"[{sId}] Total samples buffered " + totalSamplesBuffered + " Discarding " + discardSamples + " samples");
-                // How many buffers is that?
-                int discardCount = discardSamples / data.Length;
-                // Console.WriteLine($"[{sId}] Discarding " + discardSamples + " samples " + discardCount + " buffers");
-                while (audioBuffer.Count > 0)
-                {
-                    // Keep dequeueing until we've discarded enough and then start streaming
-                    byte[] audioData = audioBuffer.Dequeue();
-                    if (--discardCount <= 0) {
-                        if (inputStream != null) {
-                            inputStream.Write(audioData, audioData.Length);
-                        }
-                    }
-                }
-                // If there's also a live buffer here don't forget it
-                if (inputStream != null) {
-                    inputStream.Write(data, data.Length);
-                }
-            }
-            // Finally streaming live audio data
-            else
-            {
-                if (inputStream != null) {
-                    inputStream.Write(data, data.Length);
-                }
-            }
-            if (eosDetected)
-            {
-                // We're done here
-                if (inputStream != null) {
-                    inputStream.Close();
-                }
+
+            } else if (sosDetected && audioBuffer.Count > 0) {
+                // If we have StartOfSpeech and audio buffer, we can start streaming
+                streamBufferedAudio(data);
+
+                // And stream the current audio data
+                streamAudio(data);  
+            } else {
+                // Stream live audio data
+                streamAudio(data);
             }
         }
 
         public void onRecognitionStarted(string sessionId)
         {
-            sId = sessionId;
+            this.sessionId = sessionId;
             Console.WriteLine($"[{sessionId}] Recognition started");
         }
 
@@ -394,7 +384,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         public void onSpeechEndDetected(string sessionId, long offset)
         {
             Console.WriteLine($"[{sessionId}] Speech end detected: offset = {offset / 16000}");
-            DisposeAudio();
+            // DisposeAudio();
         }
 
         public void onRecognitionResult(string sessionId, long offset, SpeechRecognitionResult result)
