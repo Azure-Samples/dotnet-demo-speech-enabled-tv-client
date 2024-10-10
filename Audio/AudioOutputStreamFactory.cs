@@ -1,16 +1,22 @@
+using Microsoft.Extensions.Logging;
 using SpeechEnabledCoPilot.Audio;
 using SpeechEnabledCoPilot.Models;
 
 public class AudioOutputStreamFactory
 {
-    public static IAudioOutputStream Create(SynthesizerSettings settings) {
+    /// <summary>
+    /// Creates an audio output stream based on the settings.
+    /// </summary>
+    /// <param name="logger">The logger to use.</param>
+    /// <param name="settings">The settings to use.</param>
+    public static IAudioOutputStream Create(ILogger logger, SynthesizerSettings settings) {
 
         // return speaker
         if (settings.DestAudioType.Equals("speaker", StringComparison.OrdinalIgnoreCase)) {
-            return new Speaker(settings.SpeechSynthesisOutputFormat);
+            return new Speaker(logger, settings.SpeechSynthesisOutputFormat);
         }
 
         // return audio file
-        return new AudioFile(settings.DestAudioPath);
+        return new AudioFile(logger, settings.DestAudioPath);
     } 
 }
