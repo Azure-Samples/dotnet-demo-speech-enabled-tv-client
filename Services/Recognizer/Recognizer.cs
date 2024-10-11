@@ -46,7 +46,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
         private string sessionId = "00000000-0000-0000-0000-000000000000";
 
-        Queue<byte[]> audioBuffer = new Queue<byte[]>();
+        Queue<byte[]> audioBuffer;
         bool sosDetected;
         bool eosDetected;
         int sosPosition;
@@ -60,7 +60,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         public Recognizer()
         {
             InitializeAuthToken().Wait();
-            
+
             // Configure the audio input stream with raw 16khz PCM format.
             byte channels = 1;
             byte bitsPerSample = 16;
@@ -115,12 +115,13 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         {
             try
             {
-                if (audioStream != null) { audioStream.Stop(); }
-                if (inputStream != null) { inputStream.Close(); }
+                if (audioStream != null) { audioStream.Stop(); audioStream = null; }
+                Console.WriteLine("Audio stream disposed...");
             }
             catch (System.Exception)
             {
                 // Ignore any exceptions that occur when stopping the audio stream.
+                Console.WriteLine("Error disposing audio stream");
             }
         }
 
@@ -160,6 +161,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             audioStream = new Microphone();
             endpointer = new OpusVADEndpointer();
             recognitionTaskCompletionSource = new TaskCompletionSource<bool>();
+            audioBuffer = new Queue<byte[]>();
 
             Console.WriteLine("Starting audio stream...");
             endpointer.Start(this);
@@ -320,20 +322,20 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
         private void streamBufferedAudio(byte[] data) {
             // How many samples in the buffer?
-            int totalSamplesBuffered = audioBuffer.Count * (data.Length/2);
+            int totalSamplesBuffered = audioBuffer.Count * (data.Length/sizeof(Int16));
             
             // We discard those that came before StartOfSpeech
             // TODO: Don't use hardcoded 20ms frame size
             int discardSamples = totalSamplesBuffered - ((sosPosition / 20) * endpointer.GetFrameSize());
 
             // How many buffers is that?
-            int discardCount = discardSamples / data.Length;
+            int discardCount = discardSamples / (data.Length/sizeof(Int16));
 
             while (audioBuffer.Count > 0)
             {
                 // Keep dequeueing until we've discarded enough and then start streaming
                 byte[] audioData = audioBuffer.Dequeue();
-                if (--discardCount <= 0) {
+                if (--discardCount < 0) {
                     streamAudio(audioData);
                 }
             }
@@ -341,6 +343,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
         public void onAudioData(byte[] data)
         {
+            
             // If both StartOfSpeech and EndOfSpeech are detected, we're done
             if (sosDetected && eosDetected) {
                 return;
@@ -374,6 +377,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         public void onRecognitionComplete(string sessionId)
         {
             Console.WriteLine($"[{sessionId}] Recognition complete");
+            DisposeAudio();
         }
 
         public void onSpeechStartDetected(string sessionId, long offset)
