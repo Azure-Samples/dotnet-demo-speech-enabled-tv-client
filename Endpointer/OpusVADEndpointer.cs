@@ -11,6 +11,8 @@ namespace SpeechEnabledCoPilot.Endpointer
         private int frameSize;
         private int frameBytes;
         private IEndpointerHandler? handler;
+        private OpusVAD.OpusVadCallback _vadSOS;
+        private OpusVAD.OpusVadCallback _vadEOS;
 
         private bool isInitialized = false;
         private object syncLock = new object();
@@ -33,6 +35,8 @@ namespace SpeechEnabledCoPilot.Endpointer
         }
 
         public OpusVADEndpointer() {
+            _vadSOS = new OpusVAD.OpusVadCallback(OnStartOfSpeech);
+            _vadEOS = new OpusVAD.OpusVadCallback(OnEndOfSpeech);
             options = new OpusVAD.OpusVADOptions
             {
                 ctx = IntPtr.Zero,
@@ -41,8 +45,8 @@ namespace SpeechEnabledCoPilot.Endpointer
                 sos = config.SOS_WINDOW_MS,
                 eos = config.EOS_WINDOW_MS,
                 speechDetectionSensitivity = config.SENSITIVITY,
-                onSOS = Marshal.GetFunctionPointerForDelegate((OpusVAD.OpusVadCallback)OnStartOfSpeech),
-                onEOS = Marshal.GetFunctionPointerForDelegate((OpusVAD.OpusVadCallback)OnEndOfSpeech)
+                onSOS = Marshal.GetFunctionPointerForDelegate((OpusVAD.OpusVadCallback)_vadSOS),
+                onEOS = Marshal.GetFunctionPointerForDelegate((OpusVAD.OpusVadCallback)_vadEOS)
             };
 
             init();
