@@ -11,8 +11,8 @@ namespace SpeechEnabledCoPilot.Endpointer
         private int frameSize;
         private int frameBytes;
         private IEndpointerHandler? handler;
-        private OpusVAD.OpusVadCallback _vadSOS;
-        private OpusVAD.OpusVadCallback _vadEOS;
+        private readonly OpusVAD.OpusVadCallback _vadSOS;
+        private readonly OpusVAD.OpusVadCallback _vadEOS;
 
         private bool isInitialized = false;
         private object syncLock = new object();
@@ -45,8 +45,8 @@ namespace SpeechEnabledCoPilot.Endpointer
                 sos = config.SOS_WINDOW_MS,
                 eos = config.EOS_WINDOW_MS,
                 speechDetectionSensitivity = config.SENSITIVITY,
-                onSOS = Marshal.GetFunctionPointerForDelegate((OpusVAD.OpusVadCallback)_vadSOS),
-                onEOS = Marshal.GetFunctionPointerForDelegate((OpusVAD.OpusVadCallback)_vadEOS)
+                onSOS = Marshal.GetFunctionPointerForDelegate(_vadSOS),
+                onEOS = Marshal.GetFunctionPointerForDelegate(_vadEOS)
             };
 
             init();
@@ -88,7 +88,7 @@ namespace SpeechEnabledCoPilot.Endpointer
         // Callback handlers
         public void OnStartOfSpeech(IntPtr ptr, uint pos)
         {
-            Console.WriteLine($"OpusVad Endpointer onStartOfSpeech: {pos}ms");
+            // Console.WriteLine($"OpusVad Endpointer onStartOfSpeech: {pos}ms");
             if (handler != null) {
                 handler.OnStartOfSpeech((int)pos);
             }
@@ -96,7 +96,7 @@ namespace SpeechEnabledCoPilot.Endpointer
 
         public void OnEndOfSpeech(IntPtr ptr, uint pos)
         {
-            Console.WriteLine($"OpusVad Endpointer OnEndOfSpeech: {pos}ms");
+            // Console.WriteLine($"OpusVad Endpointer OnEndOfSpeech: {pos}ms");
             if (handler != null) {
                 handler.OnEndOfSpeech((int)pos);
             }
