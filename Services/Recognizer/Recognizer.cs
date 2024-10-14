@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
+using System.Timers;
 using System.Runtime.InteropServices;
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
@@ -40,13 +41,14 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         private PushAudioInputStream? inputStream;
         private IEndpointer endpointer;
         private bool isSubscribedToEvents = false;
+        private TimerService recognizerTimer;
 
         // Authorization token expires every 10 minutes. Renew it every 9 minutes.
         private TimeSpan RefreshTokenDuration = TimeSpan.FromMinutes(9);
 
         private string sessionId = "00000000-0000-0000-0000-000000000000";
 
-        Queue<byte[]> audioBuffer;
+        Queue<byte[]> audioBuffer = new Queue<byte[]>();
         bool sosDetected;
         bool eosDetected;
         int sosPosition;
@@ -93,6 +95,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             // Initialize the recognizer and endpointer.
             _recognizer = new SpeechRecognizer(config, audioConfig);
             endpointer = new OpusVADEndpointer();
+            recognizerTimer = new TimerService(settings.RecognitionTimeoutMs);
 
             initialized = true;
         }
@@ -115,13 +118,14 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         {
             try
             {
-                if (audioStream != null) { audioStream.Stop(); audioStream = null; }
-                Console.WriteLine("Audio stream disposed...");
+                if (audioStream != null) {
+                    audioStream.Stop();
+                    audioStream = null;
+                }
             }
             catch (System.Exception)
             {
                 // Ignore any exceptions that occur when stopping the audio stream.
-                Console.WriteLine("Error disposing audio stream");
             }
         }
 
@@ -146,7 +150,6 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// <exception cref="InvalidOperationException"></exception>
         public async Task Recognize(Analyzer.Analyzer? analyzer, IRecognizerResponseHandler? handler, string[]? grammarPhrases = null)
         {
-            Console.WriteLine("Recognizing speech...");
             if (!initialized)
             {
                 throw new InvalidOperationException("Recognizer not initialized");
@@ -156,27 +159,21 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                 handler = this;
             }
 
-            Console.WriteLine("Initializing stuff...");
             sosDetected = eosDetected = false;
             audioStream = new Microphone();
             endpointer = new OpusVADEndpointer();
             recognitionTaskCompletionSource = new TaskCompletionSource<bool>();
             audioBuffer = new Queue<byte[]>();
 
-            Console.WriteLine("Starting audio stream...");
             endpointer.Start(this);
-            Console.WriteLine("Starting endpointer...");
             audioStream.Start(this);
 
             // Creates a speech recognizer using audio config as audio input.
-            Console.WriteLine("Starting speech recognizer...");
             // using (_recognizer)
             // {
-                Console.WriteLine("Starting token renewal task...");
                 // Run task for token renewal in the background.
                 var tokenRenewTask = StartTokenRenewTask(source.Token, _recognizer);
 
-                Console.WriteLine("Initializing grammar...");
                 // Initialize and set inline grammar if provided.
                 PhraseListGrammar grammarList = PhraseListGrammar.FromRecognizer(_recognizer);
                 grammarList.Clear();
@@ -189,12 +186,11 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                 }
 
                 if (!isSubscribedToEvents) {
-                    Console.WriteLine("Subscribing to events...");
                     // Subscribe to events.
-                    _recognizer.SessionStarted += (s, e) => { handler.onRecognitionStarted(e.SessionId); };
-                    _recognizer.SessionStopped += (s, e) => { handler.onRecognitionComplete(e.SessionId); };
+                    _recognizer.SessionStarted += (s, e) => { sessionId = e.SessionId; recognizerTimer.Start(OnTimedEvent); handler.onRecognitionStarted(e.SessionId); };
+                    _recognizer.SessionStopped += (s, e) => { DisposeAudio(); handler.onRecognitionComplete(e.SessionId); };
                     _recognizer.SpeechStartDetected += (s, e) => { handler.onSpeechStartDetected(e.SessionId, (long)e.Offset); };
-                    _recognizer.SpeechEndDetected += (s, e) => { handler.onSpeechEndDetected(e.SessionId, (long)e.Offset); };
+                    _recognizer.SpeechEndDetected += (s, e) => { UpdateRecognitionTaskCompletionSource(); handler.onSpeechEndDetected(e.SessionId, (long)e.Offset); };
                     _recognizer.Recognizing += (s, e) => { handler.onRecognitionResult(e.SessionId, (long)e.Offset, e.Result); };
                     _recognizer.Recognized += (s, e) =>
                     {
@@ -237,15 +233,13 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                     isSubscribedToEvents = true;
                 }
 
-                Console.WriteLine("Starting continuous recognition...");
                 // Start continuous recognition - requires client-side logic to determine when to stop.
                 await _recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
 
-                Console.WriteLine("Waiting for recognition to complete...");
                 // Wait until End of Speech (EOS) is detected
                 await recognitionTaskCompletionSource.Task.ConfigureAwait(false);
+                recognizerTimer.Stop();
 
-                Console.WriteLine("Recognition complete. Stopping audio stream...");
                 await _recognizer.StopContinuousRecognitionAsync().ConfigureAwait(false);
 
                 // Cancel cancellationToken to stop the token renewal task.
@@ -254,6 +248,12 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             // }
         }
         
+        public void OnTimedEvent(object? sender, ElapsedEventArgs e)
+        {
+            Console.WriteLine($"{sessionId} Timer elapsed: {e.SignalTime:G}");
+            UpdateRecognitionTaskCompletionSource();
+        }
+
         private void UpdateRecognitionTaskCompletionSource() {
             recognitionTaskCompletionSource.TrySetResult(true);
         }
@@ -299,19 +299,18 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         }
 
         public void OnStartOfSpeech(int position) {
-            Console.WriteLine($"[{sessionId}] Start of speech detected at {position}ms");
+            Console.WriteLine($"[{sessionId}] Client start of speech detected at {position}ms");
             sosPosition = position;
             sosDetected = true;
         }
 
         public void OnEndOfSpeech(int position) {
-            Console.WriteLine($"[{sessionId}] End of speech detected at {position}ms");
+            Console.WriteLine($"[{sessionId}] Client end of speech detected at {position}ms");
             eosPosition = position;
             eosDetected = true;
 
             // Signal that recognition is ready for completion
             UpdateRecognitionTaskCompletionSource();
-            recognitionTaskCompletionSource.TrySetResult(true);
         }
 
         private void streamAudio(byte[] data) {
@@ -343,7 +342,6 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
         public void onAudioData(byte[] data)
         {
-            
             // If both StartOfSpeech and EndOfSpeech are detected, we're done
             if (sosDetected && eosDetected) {
                 return;
@@ -370,14 +368,12 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
         public void onRecognitionStarted(string sessionId)
         {
-            this.sessionId = sessionId;
             Console.WriteLine($"[{sessionId}] Recognition started");
         }
 
         public void onRecognitionComplete(string sessionId)
         {
             Console.WriteLine($"[{sessionId}] Recognition complete");
-            DisposeAudio();
         }
 
         public void onSpeechStartDetected(string sessionId, long offset)
@@ -388,7 +384,6 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         public void onSpeechEndDetected(string sessionId, long offset)
         {
             Console.WriteLine($"[{sessionId}] Speech end detected: offset = {offset / 16000}");
-            // DisposeAudio();
         }
 
         public void onRecognitionResult(string sessionId, long offset, SpeechRecognitionResult result)
@@ -417,13 +412,11 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         public void onRecognitionCancelled(string sessionId, long offset, CancellationDetails details)
         {
             Console.WriteLine($"[{sessionId}] Recognition cancelled: {details.Reason.ToString()}");
-            DisposeAudio();
         }
 
         public void onRecognitionError(string sessionId, string error, string details)
         {
             Console.WriteLine($"[{sessionId}] Recognition error: {error} - {details}");
-            DisposeAudio();
         }
 
         public void onAnalysisResult(string sessionId, JsonElement result)
