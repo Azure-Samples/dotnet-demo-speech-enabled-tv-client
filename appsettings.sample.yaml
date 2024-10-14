@@ -18,6 +18,7 @@ Recognizer:
   ProfanityOption: masked # raw or masked
   InitialSilenceTimeoutMs: 10000 # in milliseconds
   EndSilenceTimeoutMs: 1200 # in milliseconds
+  RecognitionTimeoutMs: 20000 # in milliseconds
   StablePartialResultThreshold: 2
 
 Synthesizer: 
