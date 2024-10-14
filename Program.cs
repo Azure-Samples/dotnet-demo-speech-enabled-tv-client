@@ -28,8 +28,15 @@ namespace SpeechEnabledCoPilot
         {
             Recognizer recognizer = new Recognizer();
 
-            for (int i = 0; i < 3; i++) {
-                Console.WriteLine($"Recognizing {i + 1} of 3...");
+            string input = string.Empty;
+            while (input != "quit")
+            {
+                Console.Write("Press enter to start recognition (type 'quit' to exit): ");
+                input = ReadLine.Read();
+                if (input == "quit")
+                {
+                    break;
+                }
                 recognizer.Recognize(null, null).Wait();
             }
         }
