@@ -86,7 +86,18 @@ namespace SpeechEnabledCoPilot
         public void Recognize()
         {
             Recognizer recognizer = new Recognizer(logger, new SpeechEnabledCoPilot.Monitoring.Monitor(settings));
-            recognizer.Recognize(null, null).Wait();
+            
+            string input = string.Empty;
+            while (input != "quit")
+            {
+                Console.Write("Press enter to start recognition (type 'quit' to exit): ");
+                input = ReadLine.Read();
+                if (input == "quit")
+                {
+                    break;
+                }
+                recognizer.Recognize(null, null).Wait();
+            }
         }
 
         // NLU only

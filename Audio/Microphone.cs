@@ -53,6 +53,7 @@ namespace SpeechEnabledCoPilot.Audio
                 param.sampleFormat = SampleFormat.Float32;
                 param.suggestedLatency = info.defaultLowInputLatency;
                 param.hostApiSpecificStreamInfo = IntPtr.Zero;
+
             }
             catch (System.Exception e)
             {
