@@ -20,6 +20,8 @@ namespace SpeechEnabledCoPilot.Audio
         private bool isPlaying = false;
         private object syncLock = new object();
 
+        private string sessionId = string.Empty;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="AudioFile"/> class.
         /// </summary>
@@ -74,6 +76,8 @@ namespace SpeechEnabledCoPilot.Audio
                 throw new ArgumentNullException("handler");
             }
 
+            this.sessionId = sessionId;
+
             await Task.Run(() =>
             {
                 /// If already playing, return.
@@ -93,7 +97,7 @@ namespace SpeechEnabledCoPilot.Audio
                     string filePath = Path.Combine(directory, $"audio-{fileId}.pcm");
                     
                     binWriter = new BinaryWriter(File.Open(filePath, FileMode.Create));
-                    handler.onPlayingStarted(filePath);
+                    handler.onPlayingStarted(sessionId, filePath);
                 }
             });
         }
@@ -115,7 +119,7 @@ namespace SpeechEnabledCoPilot.Audio
                     /// Notify the handler that playing has stopped.
                     if (handler != null)
                     {
-                        handler.onPlayingStopped();
+                        handler.onPlayingStopped(sessionId);
                     }
                 }
             }

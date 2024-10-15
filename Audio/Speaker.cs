@@ -182,7 +182,7 @@ namespace SpeechEnabledCoPilot.Audio
                         );
 
                         stream.Start();
-                        this.handler.onPlayingStarted("Speaker");
+                        this.handler.onPlayingStarted(sessionId, "Speaker");
                     }
                     catch (System.Exception e)
                     {
@@ -221,7 +221,7 @@ namespace SpeechEnabledCoPilot.Audio
                         isPlaying = false;
                         if (handler != null)
                         {
-                            handler.onPlayingStopped();
+                            handler.onPlayingStopped(sessionId);
                         }
                     }
                 }
