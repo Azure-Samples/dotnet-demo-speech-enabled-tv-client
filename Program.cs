@@ -79,7 +79,18 @@ namespace SpeechEnabledCoPilot
         {
             Recognizer recognizer = new Recognizer(logger, new SpeechEnabledCoPilot.Monitoring.Monitor(settings));
             Analyzer analyzer = new Analyzer(logger, new SpeechEnabledCoPilot.Monitoring.Monitor(settings));
-            recognizer.Recognize(analyzer, null).Wait();
+
+            string input = string.Empty;
+            while (input != "quit")
+            {
+                Console.Write("Press enter to start recognition (type 'quit' to exit): ");
+                input = ReadLine.Read();
+                if (input == "quit")
+                {
+                    break;
+                }
+                recognizer.Recognize(analyzer, null).Wait();
+            }
         }
 
         // ASR only
