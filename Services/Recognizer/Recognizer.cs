@@ -3,25 +3,25 @@
 // Licensed under the MIT license. See LICENSE.md file in the project root for full license information.
 //
 
+using Azure;
+using Azure.Core;
+using Microsoft.CognitiveServices.Speech;
+using Microsoft.CognitiveServices.Speech.Audio;
+using Microsoft.Extensions.Logging;
+using SpeechEnabledCoPilot.Audio;
+using SpeechEnabledCoPilot.Endpointer;
+using SpeechEnabledCoPilot.Models;
+using SpeechEnabledCoPilot.Monitoring;
+using SpeechEnabledCoPilot.Services.Analyzer;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Http;
+using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Text.Json;
 using System.Timers;
-using System.Runtime.InteropServices;
-using Microsoft.CognitiveServices.Speech;
-using Microsoft.CognitiveServices.Speech.Audio;
-using Microsoft.Extensions.Logging;
-using Azure;
-using Azure.Core;
-using SpeechEnabledCoPilot.Audio;
-using SpeechEnabledCoPilot.Services.Analyzer;
-using SpeechEnabledCoPilot.Models;
-using SpeechEnabledCoPilot.Monitoring;
-using SpeechEnabledCoPilot.Endpointer;
 
 namespace SpeechEnabledCoPilot.Services.Recognizer
 {
@@ -30,41 +30,43 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
     /// </summary>    
     public class Recognizer : IRecognizerResponseHandler, IAudioInputStreamHandler, IAudioOutputStreamHandler, IEndpointerHandler
     {
-        private ILogger logger;
-        private SpeechEnabledCoPilot.Monitoring.Monitor monitor;
+        // properties for logging and monitoring
+        private readonly ILogger logger;
+        private readonly SpeechEnabledCoPilot.Monitoring.Monitor monitor;
         private Activity? activity;
         private long _audioDurationInMs = 0;
 
+        // Settings & configs
         private RecognizerSettings settings = AppSettings.RecognizerSettings();
-
-        private readonly object balanceLock = new object();
-        private bool initialized = false;
-
         private SpeechConfig config;
         private AudioConfig audioConfig;
+
+        // Authorization token
         private string? authorizationToken;
         private CancellationTokenSource source;
+        private TimeSpan RefreshTokenDuration = TimeSpan.FromMinutes(9); // Authorization token expires every 10 minutes. Renew it every 9 minutes.
+        private Task? tokenRenewTask;
+
+        // Speech recognizer instance
         private SpeechRecognizer _recognizer;
+        private TimerService recognizerTimer; // Timer to force recognition to stop after a certain time
+        TaskCompletionSource<bool> recognitionTaskCompletionSource = new TaskCompletionSource<bool>(); // Task completion source to signal recognition completion
 
-        private IAudioInputStream? audioStream;
-        private PushAudioInputStream? inputStream;
-        private IAudioOutputStream? audioOutFileForDebug;
+        // Audio input/output streams
+        private IAudioInputStream? audioStream;             // audio input stream (e.g. microphone)
+        private PushAudioInputStream? inputStream;          // audio input stream to feed the recognizer
+        private IAudioOutputStream? audioOutFileForDebug;   // audio output stream to capture audio for debug
+
+        // Endpointer
         private IEndpointer endpointer;
-        private bool isSubscribedToEvents = false;
-        private TimerService recognizerTimer;
-
-        // Authorization token expires every 10 minutes. Renew it every 9 minutes.
-        private TimeSpan RefreshTokenDuration = TimeSpan.FromMinutes(9);
-
-        // private string sessionId = "00000000-0000-0000-0000-000000000000";
-
-        Queue<byte[]> audioBuffer = new Queue<byte[]>();
-        bool sosDetected;
-        bool eosDetected;
-        int sosPosition;
-        int eosPosition;
-
-        TaskCompletionSource<bool> recognitionTaskCompletionSource = new TaskCompletionSource<bool>();
+        private Queue<byte[]> audioBuffer = new Queue<byte[]>(); // queue audio data while waiting for StartOfSpeech
+        private bool sosDetected { get; set; } // StartOfSpeech detected flag
+        private bool eosDetected { get; set; } // EndOfSpeech detected flag
+        private int sosPosition { get; set; } = 0; // StartOfSpeech position
+        private int eosPosition { get; set; } = 0; // EndOfSpeech position
+        
+        // Flags
+        private bool isSubscribedToEvents = false; // flag to check if recognizer has already subscribed to events
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Recognizer"/> class.
@@ -73,9 +75,11 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// <param name="monitor">The monitor to use.</param>
         public Recognizer(ILogger logger, SpeechEnabledCoPilot.Monitoring.Monitor monitor)
         {
+            // Initialize the logger and monitor
             this.logger = logger;
             this.monitor = monitor.Initialize("STT");
 
+            // Initialize the authorization token
             InitializeAuthToken().Wait();
 
             // Configure the audio input stream with raw 16khz PCM format.
@@ -86,16 +90,13 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             inputStream = new PushAudioInputStream(audioFormat);
             audioConfig = AudioConfig.FromStreamInput(inputStream);
 
-            // Creates an instance of a speech config with 
-            // acquired authorization token and service region (e.g., "westus").
-            // The default language is "en-us".
+            // Creates an instance of a speech config with acquired authorization token and service region (e.g., "westus").
             config = SpeechConfig.FromAuthorizationToken(authorizationToken, settings.ServiceRegion);
             config.SpeechRecognitionLanguage = settings.Language;
             config.OutputFormat = OutputFormat.Simple;
             config.RequestWordLevelTimestamps();
             config.EnableAudioLogging();
             config.SetProfanity(ProfanityOption.Masked);
-            // config.EnableDictation();
             config.SetProperty(PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, settings.InitialSilenceTimeoutMs.ToString());
             config.SetProperty(PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, settings.EndSilenceTimeoutMs.ToString());
             config.SetProperty(PropertyId.SpeechServiceResponse_RequestSnr, true.ToString());
@@ -110,38 +111,9 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             // Initialize the recognizer and endpointer.
             _recognizer = new SpeechRecognizer(config, audioConfig);
             endpointer = new OpusVADEndpointer(this.logger);
+
+            // Initialize the recognition timer
             recognizerTimer = new TimerService(settings.RecognitionTimeoutMs);
-
-            initialized = true;
-        }
-
-        /// <summary>
-        /// Initializes the authorization token.
-        /// </summary>
-        /// <returns>The task.</returns>
-        private async Task InitializeAuthToken()
-        {
-            // Gets a fresh authorization token from 
-            // specified subscription key and service region (e.g., "westus").
-            authorizationToken = await GetToken(settings.SubscriptionKey, settings.ServiceRegion);
-        }
-
-        /// <summary>
-        /// Disposes the audio stream.
-        /// </summary>
-        private void DisposeAudio()
-        {
-            try
-            {
-                if (audioStream != null) {
-                    audioStream.Stop();
-                    audioStream = null;
-                }
-            }
-            catch (System.Exception)
-            {
-                // Ignore any exceptions that occur when stopping the audio stream.
-            }
         }
 
         /// <summary>
@@ -165,237 +137,22 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// <exception cref="InvalidOperationException"></exception>
         public async Task Recognize(Analyzer.Analyzer? analyzer, IRecognizerResponseHandler? handler, string[]? grammarPhrases = null)
         {
-            if (!initialized)
+            if (_recognizer == null)
             {
                 throw new InvalidOperationException("Recognizer not initialized");
             }
             if (handler == null)
             {
-                handler = this;
+                handler = this; // this class implements the handler interface to simply log the events
             }
 
             using (activity = monitor.activitySource.StartActivity("Recognize"))
             {
                 // Get the start time to measure the total processing time
                 DateTime startTime = DateTime.Now;
-                DateTime eosTime = DateTime.Now;
 
-                // Start the audio stream
-                sosDetected = eosDetected = false;
-                audioStream = new Microphone(logger);
-                endpointer = new OpusVADEndpointer(logger);
-                recognitionTaskCompletionSource = new TaskCompletionSource<bool>();
-                audioBuffer = new Queue<byte[]>();
-
-                endpointer.Start(this);
-                audioStream.Start(this);
-
-                // Run task for token renewal in the background.
-                var tokenRenewTask = StartTokenRenewTask(source.Token, _recognizer);
-
-                // Capture audio to file for debug if feature is enabled
-                if (settings.CaptureAudio) {
-                    audioOutFileForDebug = new AudioFile(logger, settings.SourceAudioPath);
-                    await audioOutFileForDebug.Start(this);
-                }
-
-                // Initialize and set inline grammar if provided.
-                PhraseListGrammar grammarList = PhraseListGrammar.FromRecognizer(_recognizer);
-                grammarList.Clear();
-                if (grammarPhrases != null)
-                {
-                    foreach (var item in grammarPhrases)
-                    {
-                        grammarList.AddPhrase(item);
-                    }
-                }
-
-                if (!isSubscribedToEvents) {
-                    // Subscribe to events.
-                    _recognizer.SessionStarted += (s, e) => {
-                        // sessionId = e.SessionId; recognizerTimer.Start(OnTimedEvent); handler.onRecognitionStarted(e.SessionId);
-                        // Start the recognition timer
-                        recognizerTimer.Start(e.SessionId, OnTimedEvent);
-
-                        // Set the session ID for tracking
-                        monitor.SessionId = e.SessionId;
-
-                        // Log the session start event
-                        activity?.AddEvent(new ActivityEvent("SessionStarted",
-                                            DateTimeOffset.UtcNow,
-                                            new ActivityTagsCollection
-                                            {
-                                                {"SessionId", e.SessionId}
-                                            }));
-                        activity?.SetTag("SessionId", e.SessionId);
-
-                        // Call the handler
-                        handler.onRecognitionStarted(e.SessionId);
-                    };
-                    _recognizer.SessionStopped += (s, e) => {
-                        // DisposeAudio(); handler.onRecognitionComplete(e.SessionId);
-                        DisposeAudio();
-                        
-                        // Clear the session ID
-                        monitor.SessionId = string.Empty;
-
-                        // Log the session stop event
-                        activity?.AddEvent(new ActivityEvent("SessionStopped",
-                                            DateTimeOffset.UtcNow, 
-                                            new ActivityTagsCollection
-                                            {
-                                                {"SessionId", e.SessionId}
-                                            }));
-                        activity?.SetTag("SessionId", e.SessionId);
-
-                        // Call the handler
-                        handler.onRecognitionComplete(e.SessionId);
-                    };
-                    _recognizer.SpeechStartDetected += (s, e) => {
-                        // Log the speech start detected event
-                        activity?.AddEvent(new ActivityEvent("SpeechStartDetected", 
-                                            DateTimeOffset.UtcNow, 
-                                            new ActivityTagsCollection
-                                            {
-                                                {"Offset", (long)e.Offset / 10000},
-                                                {"SessionId", monitor.SessionId}
-                                            }));
-                        
-                        // Call the handler
-                        handler.onSpeechStartDetected(e.SessionId, (long)e.Offset);
-                    };
-                    _recognizer.SpeechEndDetected += (s, e) => {
-                        // UpdateRecognitionTaskCompletionSource(); handler.onSpeechEndDetected(e.SessionId, (long)e.Offset);
-                        // Capture the end of speech time for latency calculation
-                        eosTime = DateTime.Now;
-
-                        // Log the speech end detected event
-                        activity?.AddEvent(new ActivityEvent("SpeechEndDetected", 
-                                            DateTimeOffset.UtcNow, 
-                                            new ActivityTagsCollection
-                                            {
-                                                {"Offset", (long)e.Offset / 10000},
-                                                {"SessionId", monitor.SessionId}
-                                            }));
-
-                        // Signal to stop recognition
-                        UpdateRecognitionTaskCompletionSource();
-
-                        // Call the handler
-                        handler.onSpeechEndDetected(e.SessionId, (long)e.Offset);
-                    };
-                    _recognizer.Recognizing += (s, e) => {
-                        // Log the recognizing event
-                        activity?.AddEvent(new ActivityEvent("Recognizing", 
-                                            DateTimeOffset.UtcNow, 
-                                            new ActivityTagsCollection
-                                            {
-                                                {"Transcription", e.Result.Text},
-                                                {"SessionId", monitor.SessionId}
-                                            }));
-                        
-                        // Call the handler
-                        handler.onRecognitionResult(e.SessionId, (long)e.Offset, e.Result);
-                    };
-                    _recognizer.Recognized += (s, e) =>
-                    {
-                        // Calculate the latency from the end of speech to the recognition result
-                        TimeSpan latency = DateTime.Now - eosTime;
-
-                        if (e.Result.Reason == ResultReason.RecognizedSpeech)
-                        {
-                            // Monitor the STT request
-                            monitor.IncrementRequests("Success");
-                            monitor.RecordLatency((long)latency.TotalMilliseconds, "Success");
-
-                            // Log the recognized event
-                            activity?.AddEvent(new ActivityEvent("Recognized",
-                                            DateTimeOffset.UtcNow,
-                                            new ActivityTagsCollection
-                                            {
-                                                {"Transcription", e.Result.Best()?.FirstOrDefault()?.Text},
-                                                {"ConfidenceScore", e.Result.Best()?.FirstOrDefault()?.Confidence},
-                                                {"SessionId", monitor.SessionId}
-                                            }));
-                            activity?.SetTag("Disposition", "Success");
-                            activity?.SetTag("Transcription", e.Result.Best()?.FirstOrDefault()?.Text);
-                            activity?.SetTag("ConfidenceScore", e.Result.Best()?.FirstOrDefault()?.Confidence);
-
-                            // Call the handler
-                            handler.onFinalRecognitionResult(e.SessionId, (long)e.Offset, e.Result.Best());
-                            if (analyzer != null)
-                            {
-                                try
-                                {
-                                    handler.onAnalysisResult(e.SessionId, analyzer.Analyze(e.Result.Text, e.SessionId));
-                                }
-                                catch (RequestFailedException rfe)
-                                {
-                                    handler.onAnalysisError(e.SessionId, $"{rfe.Status}: {rfe.ErrorCode} {rfe.Message}", $"Error analyzing text: {rfe.StackTrace}");
-                                }
-                                catch (Exception ex)
-                                {
-                                    handler.onAnalysisError(e.SessionId, $"{ex.GetType().ToString()}: {ex.Message}", $"Error analyzing text: {ex.StackTrace}");
-                                }
-                            }
-                        }
-                        else if (e.Result.Reason == ResultReason.NoMatch)
-                        {
-                            // Monitor the STT request
-                            monitor.IncrementRequests("NoMatch");
-                            monitor.RecordLatency((long)latency.TotalMilliseconds, "NoMatch");
-
-                            // Log the no match event
-                            NoMatchDetails noMatchDetails = NoMatchDetails.FromResult(e.Result);
-                            activity?.AddEvent(new ActivityEvent("NoMatch", 
-                                            DateTimeOffset.UtcNow, 
-                                            new ActivityTagsCollection
-                                            {
-                                                {"Reason", noMatchDetails.Reason.ToString()},
-                                                {"SessionId", monitor.SessionId}
-                                            }));
-                            activity?.SetTag("Disposition", "NoMatch");
-                            activity?.SetTag("Reason", noMatchDetails.Reason.ToString());
-
-                            // Call the handler
-                            handler.onRecognitionNoMatch(e.SessionId, (long)e.Offset, noMatchDetails.Reason.ToString(), e.Result);
-                        }
-                    };
-                    _recognizer.Canceled += (s, e) =>
-                    {
-                        // Log the canceled event
-                        activity?.AddEvent(new ActivityEvent("Canceled",
-                                            DateTimeOffset.UtcNow,
-                                            new ActivityTagsCollection
-                                            {
-                                                {"Reason", e.Reason.ToString()},
-                                                {"SessionId", monitor.SessionId}
-                                            }));
-                        if (e.Reason == CancellationReason.Error)
-                        {
-                            // Monitor the STT request
-                            monitor.IncrementRequests("Error");
-                            activity?.SetTag("Disposition", "Error");
-                            activity?.SetTag("Reason", e.ErrorCode.ToString());
-                            activity?.SetTag("Details", e.ErrorDetails);
-
-                            // Call the handler
-                            handler.onRecognitionError(e.SessionId, e.ErrorCode.ToString(), e.ErrorDetails);
-                        }
-                        else
-                        {
-                            // Monitor the STT request
-                            monitor.IncrementRequests("Canceled");
-                            activity?.SetTag("Disposition", "Error");
-                            activity?.SetTag("Reason", CancellationDetails.FromResult(e.Result).Reason.ToString());
-
-                            // Call the handler
-                            handler.onRecognitionCancelled(e.SessionId, (long)e.Offset, CancellationDetails.FromResult(e.Result));
-                        }
-                    };
-
-                    isSubscribedToEvents = true;
-                }
+                // Initialize the recognizer
+                await InitializeRecognizer(analyzer, handler, grammarPhrases);
 
                 // Start continuous recognition - requires client-side logic to determine when to stop.
                 await _recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
@@ -417,31 +174,246 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             }
         }
         
-        public void OnTimedEvent(object? sender, TimerServiceEventArgs e)
-        {
-            Console.WriteLine($"[{e.SessionId}] Timer elapsed: {e.SignalTime:G}");
-            UpdateRecognitionTaskCompletionSource();
-        }
+        /// <summary>
+        /// Initializes the recognizer.
+        /// </summary>
+        /// <param name="grammarPhrases">The grammar phrases to use.</param>
+        private async Task InitializeRecognizer(Analyzer.Analyzer? analyzer, IRecognizerResponseHandler? handler, string[]? grammarPhrases = null) {
+            // Start the audio stream
+            sosDetected = eosDetected = false;
+            audioStream = new Microphone(logger);
+            endpointer = new OpusVADEndpointer(logger);
+            recognitionTaskCompletionSource = new TaskCompletionSource<bool>();
+            audioBuffer = new Queue<byte[]>();
 
-        private void UpdateRecognitionTaskCompletionSource() {
-            recognitionTaskCompletionSource.TrySetResult(true);
-        }
+            endpointer.Start(this);
+            audioStream.Start(this);
 
-        // Renews authorization token periodically until cancellationToken is cancelled.
-        protected Task StartTokenRenewTask(CancellationToken cancellationToken, SpeechRecognizer recognizer)
-        {
-            return Task.Run(async () =>
+            // Run task for token renewal in the background.
+            tokenRenewTask = StartTokenRenewTask(source.Token, _recognizer);
+
+            // Capture audio to file for debug if feature is enabled
+            if (settings.CaptureAudio) {
+                audioOutFileForDebug = new AudioFile(logger, settings.SourceAudioPath);
+                await audioOutFileForDebug.Start(this);
+            }
+
+            // Initialize and set inline grammar if provided.
+            PhraseListGrammar grammarList = PhraseListGrammar.FromRecognizer(_recognizer);
+            grammarList.Clear();
+            if (grammarPhrases != null)
             {
-                while (!cancellationToken.IsCancellationRequested)
+                foreach (var item in grammarPhrases)
                 {
-                    await Task.Delay(RefreshTokenDuration, cancellationToken);
-
-                    if (!cancellationToken.IsCancellationRequested)
-                    {
-                        recognizer.AuthorizationToken = await GetToken(settings.SubscriptionKey, settings.ServiceRegion);
-                    }
+                    grammarList.AddPhrase(item);
                 }
-            });
+            }
+
+            // Subscribe to events
+            SubscribeToEvents(analyzer, handler);
+        }
+
+        /// <summary>
+        /// Subscribes to the recognizer events.
+        /// </summary>
+        private void SubscribeToEvents(Analyzer.Analyzer? analyzer, IRecognizerResponseHandler? handler) {
+            DateTime eosTime = DateTime.Now;
+
+            if (!isSubscribedToEvents) {
+                // Subscribe to events.
+                _recognizer.SessionStarted += (s, e) => {
+                    // Start the recognition timer
+                    recognizerTimer.Start(e.SessionId, OnRecognitionTimerExpired);
+
+                    // Set the session ID for tracking
+                    monitor.SessionId = e.SessionId;
+
+                    // Log the session start event
+                    activity?.AddEvent(new ActivityEvent("SessionStarted",
+                                        DateTimeOffset.UtcNow,
+                                        new ActivityTagsCollection
+                                        {
+                                            {"SessionId", e.SessionId}
+                                        }));
+                    activity?.SetTag("SessionId", e.SessionId);
+
+                    // Call the handler
+                    handler?.onRecognitionStarted(e.SessionId);
+                };
+                _recognizer.SessionStopped += (s, e) => {
+                    StopAudioStream();
+                    
+                    // Clear the session ID
+                    monitor.SessionId = string.Empty;
+
+                    // Log the session stop event
+                    activity?.AddEvent(new ActivityEvent("SessionStopped",
+                                        DateTimeOffset.UtcNow, 
+                                        new ActivityTagsCollection
+                                        {
+                                            {"SessionId", e.SessionId}
+                                        }));
+                    activity?.SetTag("SessionId", e.SessionId);
+
+                    // Call the handler
+                    handler?.onRecognitionComplete(e.SessionId);
+                };
+                _recognizer.SpeechStartDetected += (s, e) => {
+                    // Log the speech start detected event
+                    activity?.AddEvent(new ActivityEvent("SpeechStartDetected", 
+                                        DateTimeOffset.UtcNow, 
+                                        new ActivityTagsCollection
+                                        {
+                                            {"Offset", (long)e.Offset / 10000},
+                                            {"SessionId", monitor.SessionId}
+                                        }));
+                    
+                    // Call the handler
+                    handler?.onSpeechStartDetected(e.SessionId, (long)e.Offset);
+                };
+                _recognizer.SpeechEndDetected += (s, e) => {
+                    // UpdateRecognitionTaskCompletionSource(); handler.onSpeechEndDetected(e.SessionId, (long)e.Offset);
+                    // Capture the end of speech time for latency calculation
+                    eosTime = DateTime.Now;
+
+                    // Log the speech end detected event
+                    activity?.AddEvent(new ActivityEvent("SpeechEndDetected", 
+                                        DateTimeOffset.UtcNow, 
+                                        new ActivityTagsCollection
+                                        {
+                                            {"Offset", (long)e.Offset / 10000},
+                                            {"SessionId", monitor.SessionId}
+                                        }));
+
+                    // Signal to stop recognition
+                    UpdateRecognitionTaskCompletionSource();
+
+                    // Call the handler
+                    handler?.onSpeechEndDetected(e.SessionId, (long)e.Offset);
+                };
+                _recognizer.Recognizing += (s, e) => {
+                    // Log the recognizing event
+                    activity?.AddEvent(new ActivityEvent("Recognizing", 
+                                        DateTimeOffset.UtcNow, 
+                                        new ActivityTagsCollection
+                                        {
+                                            {"Transcription", e.Result.Text},
+                                            {"SessionId", monitor.SessionId}
+                                        }));
+                    
+                    // Call the handler
+                    handler?.onRecognitionResult(e.SessionId, (long)e.Offset, e.Result);
+                };
+                _recognizer.Recognized += (s, e) =>
+                {
+                    // Calculate the latency from the end of speech to the recognition result
+                    TimeSpan latency = DateTime.Now - eosTime;
+
+                    if (e.Result.Reason == ResultReason.RecognizedSpeech)
+                    {
+                        // Monitor the STT request
+                        monitor.IncrementRequests("Success");
+                        monitor.RecordLatency((long)latency.TotalMilliseconds, "Success");
+
+                        // Log the recognized event
+                        activity?.AddEvent(new ActivityEvent("Recognized",
+                                        DateTimeOffset.UtcNow,
+                                        new ActivityTagsCollection
+                                        {
+                                            {"Transcription", e.Result.Best()?.FirstOrDefault()?.Text},
+                                            {"ConfidenceScore", e.Result.Best()?.FirstOrDefault()?.Confidence},
+                                            {"SessionId", monitor.SessionId}
+                                        }));
+                        activity?.SetTag("Disposition", "Success");
+                        activity?.SetTag("Transcription", e.Result.Best()?.FirstOrDefault()?.Text);
+                        activity?.SetTag("ConfidenceScore", e.Result.Best()?.FirstOrDefault()?.Confidence);
+
+                        // Call the handler
+                        handler?.onFinalRecognitionResult(e.SessionId, (long)e.Offset, e.Result.Best());
+                        if (analyzer != null)
+                        {
+                            try
+                            {
+                                handler?.onAnalysisResult(e.SessionId, analyzer.Analyze(e.Result.Text, e.SessionId));
+                            }
+                            catch (RequestFailedException rfe)
+                            {
+                                handler?.onAnalysisError(e.SessionId, $"{rfe.Status}: {rfe.ErrorCode} {rfe.Message}", $"Error analyzing text: {rfe.StackTrace}");
+                            }
+                            catch (Exception ex)
+                            {
+                                handler?.onAnalysisError(e.SessionId, $"{ex.GetType().ToString()}: {ex.Message}", $"Error analyzing text: {ex.StackTrace}");
+                            }
+                        }
+                    }
+                    else if (e.Result.Reason == ResultReason.NoMatch)
+                    {
+                        // Monitor the STT request
+                        monitor.IncrementRequests("NoMatch");
+                        monitor.RecordLatency((long)latency.TotalMilliseconds, "NoMatch");
+
+                        // Log the no match event
+                        NoMatchDetails noMatchDetails = NoMatchDetails.FromResult(e.Result);
+                        activity?.AddEvent(new ActivityEvent("NoMatch", 
+                                        DateTimeOffset.UtcNow, 
+                                        new ActivityTagsCollection
+                                        {
+                                            {"Reason", noMatchDetails.Reason.ToString()},
+                                            {"SessionId", monitor.SessionId}
+                                        }));
+                        activity?.SetTag("Disposition", "NoMatch");
+                        activity?.SetTag("Reason", noMatchDetails.Reason.ToString());
+
+                        // Call the handler
+                        handler?.onRecognitionNoMatch(e.SessionId, (long)e.Offset, noMatchDetails.Reason.ToString(), e.Result);
+                    }
+                };
+                _recognizer.Canceled += (s, e) =>
+                {
+                    // Log the canceled event
+                    activity?.AddEvent(new ActivityEvent("Canceled",
+                                        DateTimeOffset.UtcNow,
+                                        new ActivityTagsCollection
+                                        {
+                                            {"Reason", e.Reason.ToString()},
+                                            {"SessionId", monitor.SessionId}
+                                        }));
+                    if (e.Reason == CancellationReason.Error)
+                    {
+                        // Monitor the STT request
+                        monitor.IncrementRequests("Error");
+                        activity?.SetTag("Disposition", "Error");
+                        activity?.SetTag("Reason", e.ErrorCode.ToString());
+                        activity?.SetTag("Details", e.ErrorDetails);
+
+                        // Call the handler
+                        handler?.onRecognitionError(e.SessionId, e.ErrorCode.ToString(), e.ErrorDetails);
+                    }
+                    else
+                    {
+                        // Monitor the STT request
+                        monitor.IncrementRequests("Canceled");
+                        activity?.SetTag("Disposition", "Error");
+                        activity?.SetTag("Reason", CancellationDetails.FromResult(e.Result).Reason.ToString());
+
+                        // Call the handler
+                        handler?.onRecognitionCancelled(e.SessionId, (long)e.Offset, CancellationDetails.FromResult(e.Result));
+                    }
+                };
+
+                isSubscribedToEvents = true;
+            }
+        }
+
+        /// <summary>
+        /// Initializes the authorization token.
+        /// </summary>
+        /// <returns>The task.</returns>
+        private async Task InitializeAuthToken()
+        {
+            // Gets a fresh authorization token from 
+            // specified subscription key and service region (e.g., "westus").
+            authorizationToken = await GetToken(settings.SubscriptionKey, settings.ServiceRegion);
         }
 
         // Gets an authorization token by sending a POST request to the token service.
@@ -467,6 +439,93 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             }
         }
 
+        // Renews authorization token periodically until cancellationToken is cancelled.
+        protected Task StartTokenRenewTask(CancellationToken cancellationToken, SpeechRecognizer recognizer)
+        {
+            return Task.Run(async () =>
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    await Task.Delay(RefreshTokenDuration, cancellationToken);
+
+                    if (!cancellationToken.IsCancellationRequested)
+                    {
+                        recognizer.AuthorizationToken = await GetToken(settings.SubscriptionKey, settings.ServiceRegion);
+                    }
+                }
+            });
+        }
+
+        /// <summary>
+        /// Stops the audio stream.
+        /// </summary>
+        private void StopAudioStream()
+        {
+            try
+            {
+                if (audioStream != null) {
+                    audioStream.Stop();
+                    audioStream = null;
+                }
+            }
+            catch (System.Exception)
+            {
+                // Ignore any exceptions that occur when stopping the audio stream.
+            }
+        }
+
+        /// <summary>
+        /// Streams buffered audio data to the recognizer.
+        /// </summary>
+        /// <param name="data">The audio data to stream.</param>
+        /// <returns></returns>
+        /// <remarks>
+        /// This method streams the buffered audio data to the recognizer after StartOfSpeech is detected.
+        /// It discards the audio data that came before StartOfSpeech.
+        /// </remarks>
+        private void StreamBufferedAudio(byte[] data) {
+            // How many samples in the buffer?
+            int totalSamplesBuffered = audioBuffer.Count * (data.Length/sizeof(Int16));
+            
+            // We discard those that came before StartOfSpeech
+            // TODO: Don't use hardcoded 20ms frame size
+            int discardSamples = totalSamplesBuffered - ((sosPosition / 20) * endpointer.GetFrameSize());
+
+            // How many buffers is that?
+            int discardCount = discardSamples / (data.Length/sizeof(Int16));
+
+            while (audioBuffer.Count > 0)
+            {
+                // Keep dequeueing until we've discarded enough and then start streaming
+                byte[] audioData = audioBuffer.Dequeue();
+                if (--discardCount < 0) {
+                    inputStream?.Write(audioData, audioData.Length);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Updates the recognition task completion source, signaling that recognition is ready for completion.
+        /// </summary>
+        private void UpdateRecognitionTaskCompletionSource() {
+            recognitionTaskCompletionSource.TrySetResult(true);
+        }
+
+        /// Timer event handler methods
+
+        /// <summary>
+        /// Handles the recognition timer expiration event.
+        /// </summary>
+        /// <param name="sender">The sender of the event.</param>
+        /// <param name="e">The event arguments.</param>
+        public void OnRecognitionTimerExpired(object? sender, TimerServiceEventArgs e)
+        {
+            logger.LogInformation($"[{e.SessionId}] Timer elapsed: {e.SignalTime:G}");
+            UpdateRecognitionTaskCompletionSource(); // Signal recognition completion
+        }
+
+        /// Audio stream output handler methods
+
         /// <summary>
         /// Handles the audio output stream started playing event
         /// </summary>
@@ -475,7 +534,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         public void onPlayingStarted(string sessionId, string destination)
         {
             // Let's just capture this event locally since it's only interesting to the user
-            Console.WriteLine($"[{sessionId}] Capturing audio to file: {destination}.");
+            Console.WriteLine($"Capturing audio to file: {destination}.");
         }
 
         /// <summary>
@@ -486,6 +545,8 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         {
             // Nothing to do...
         }
+
+        /// Audio stream input handler methods
 
         /// <summary>
         /// Called when audio data is received from the audio input stream.
@@ -526,23 +587,32 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
             } else if (sosDetected && audioBuffer.Count > 0) {
                 // If we have StartOfSpeech and audio buffer, we can start streaming
-                streamBufferedAudio(data);
+                StreamBufferedAudio(data);
 
                 // And stream the current audio data
-                streamAudio(data);  
+                inputStream?.Write(data, data.Length);
             } else {
                 // Stream live audio data
-                streamAudio(data);
+                inputStream?.Write(data, data.Length);
             }
         }
         
-        // Push audio data to the input stream.
+        /// Endpointer handler methods
+
+        /// <summary>
+        /// Called when the start of speech is detected by the endpointer.
+        /// </summary>
+        /// <param name="position">The position in the audio stream.</param>
         public void OnStartOfSpeech(int position) {
             logger.LogInformation($"[{monitor.SessionId}] Client start of speech detected at {position}ms");
             sosPosition = position;
             sosDetected = true;
         }
 
+        /// <summary>
+        /// Called when the end of speech is detected by the endpointer.
+        /// </summary>
+        /// <param name="position">The position in the audio stream.</param>
         public void OnEndOfSpeech(int position) {
             logger.LogInformation($"[{monitor.SessionId}] Client end of speech detected at {position}ms");
             eosPosition = position;
@@ -552,32 +622,15 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             UpdateRecognitionTaskCompletionSource();
         }
 
-        private void streamAudio(byte[] data) {
-            if (inputStream != null) {
-                inputStream.Write(data, data.Length);
-            }
+        /// <summary>
+        /// Called when an error occurs during processing within the endpointer.
+        /// </summary>
+        /// <param name="errorCode">The error code.</param>
+        public void OnProcessingError(int errorCode) {
+            logger.LogError($"[{monitor.SessionId}] Endpointer failed to process audio with error code: {errorCode}");
         }
 
-        private void streamBufferedAudio(byte[] data) {
-            // How many samples in the buffer?
-            int totalSamplesBuffered = audioBuffer.Count * (data.Length/sizeof(Int16));
-            
-            // We discard those that came before StartOfSpeech
-            // TODO: Don't use hardcoded 20ms frame size
-            int discardSamples = totalSamplesBuffered - ((sosPosition / 20) * endpointer.GetFrameSize());
-
-            // How many buffers is that?
-            int discardCount = discardSamples / (data.Length/sizeof(Int16));
-
-            while (audioBuffer.Count > 0)
-            {
-                // Keep dequeueing until we've discarded enough and then start streaming
-                byte[] audioData = audioBuffer.Dequeue();
-                if (--discardCount < 0) {
-                    streamAudio(audioData);
-                }
-            }
-        }
+        /// Recognizer response handler methods
 
         public void onRecognitionStarted(string sessionId)
         {
