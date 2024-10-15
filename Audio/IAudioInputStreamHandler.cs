@@ -6,7 +6,6 @@ namespace SpeechEnabledCoPilot.Audio
     /// </summary>
     public interface IAudioInputStreamHandler
     {
-
         /// <summary>
         /// Receives audio data.
         /// </summary>

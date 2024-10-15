@@ -2,6 +2,10 @@ using System;
 using System.Runtime.InteropServices;
 
 namespace SpeechEnabledCoPilot.Endpointer {
+
+    /// <summary>
+    /// Represents the OpusVAD class.
+    /// </summary>
     public class OpusVAD
     {
         // Define constants
