@@ -230,6 +230,7 @@ namespace SpeechEnabledCoPilot
             Console.WriteLine($"  --ProfanityOption                 Profanity filter option [raw, masked]. Default: {RecognizerSettings.Defaults.ProfanityOption}");
             Console.WriteLine($"  --InitialSilenceTimeoutMs         Initial silence timeout in milliseconds. Default: {RecognizerSettings.Defaults.InitialSilenceTimeoutMs}");
             Console.WriteLine($"  --EndSilenceTimeoutMs             End silence timeout in milliseconds. Default: {RecognizerSettings.Defaults.EndSilenceTimeoutMs}");
+            Console.WriteLine($"  --RecognitionTimeoutMs            Recognition timeout in milliseconds. Default: {RecognizerSettings.Defaults.RecognitionTimeoutMs}");
             Console.WriteLine($"  --StablePartialResultThreshold    Stable partial result threshold. Default: {RecognizerSettings.Defaults.StablePartialResultThreshold}");
             Console.WriteLine($"  --CaptureAudio                    Enable to capture audio to file for debug. Default: {RecognizerSettings.Defaults.CaptureAudio}");
             Console.WriteLine();
@@ -253,6 +254,10 @@ namespace SpeechEnabledCoPilot
             Console.WriteLine($"  --BotName                     Azure Bot Name. Default: {BotSettings.Defaults.BotName}");
             Console.WriteLine($"  --BotTokenEndpoint            Azure Bot Token Endpoint. Default: {BotSettings.Defaults.BotTokenEndpoint}");
             Console.WriteLine($"  --EndConversationMessage      Message to pass to bot to signal end of conversation. Default: {BotSettings.Defaults.EndConversationMessage}");
+            Console.WriteLine();
+            Console.WriteLine("Endpointer Options:");
+            Console.WriteLine($"  --StartOfSpeechWindowInMs     The amount of speech, in ms, needed to trigger start of speech. Default: {EndpointerSettings.Defaults.StartOfSpeechWindowInMs}");
+            Console.WriteLine($"  --EndOfSpeechWindowInMs       The amount of trailing silence, in ms, needed to trigger end of speech. Default: {EndpointerSettings.Defaults.EndOfSpeechWindowInMs}");
         }
 
         // Stash ReadLine history for later restoration

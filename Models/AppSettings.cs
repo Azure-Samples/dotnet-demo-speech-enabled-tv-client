@@ -36,6 +36,7 @@ namespace SpeechEnabledCoPilot.Models
         public SynthesizerSettings synthesizerSettings { get; set; } = new SynthesizerSettings();
         public AnalyzerSettings analyzerSettings { get; set; } = new AnalyzerSettings();
         public BotSettings botSettings { get; set; } = new BotSettings();
+        public EndpointerSettings endpointerSettings { get; set; } = new EndpointerSettings();
 
         /// <summary>
         /// Loads the application settings from various sources and returns an instance of the <see cref="AppSettings"/> class.
@@ -121,6 +122,13 @@ namespace SpeechEnabledCoPilot.Models
                                     _instance.botSettings = bSettings;
                                 }
                                 break;
+                            case "Endpointer":
+                                EndpointerSettings? eSettings = configuration.GetSection("Endpointer").Get<EndpointerSettings>();
+                                if (eSettings != null)
+                                {
+                                    _instance.endpointerSettings = eSettings;
+                                }
+                                break;
                             default:
                                 /// Handle unrecognized child keys if needed
                                 break;
@@ -130,6 +138,7 @@ namespace SpeechEnabledCoPilot.Models
                     configuration.Bind(_instance.synthesizerSettings);
                     configuration.Bind(_instance.analyzerSettings);
                     configuration.Bind(_instance.botSettings);
+                    configuration.Bind(_instance.endpointerSettings);
                 }
             }
 
@@ -170,6 +179,15 @@ namespace SpeechEnabledCoPilot.Models
                 throw new Exception("AppSettings not loaded. Please call LoadAppSettings first.");
             }
             return _instance.botSettings;
+        }
+
+        public static EndpointerSettings EndpointerSettings()
+        {
+            if (_instance == null)
+            {
+                throw new Exception("AppSettings not loaded. Please call LoadAppSettings first.");
+            }
+            return _instance.endpointerSettings;
         }
 
         /// <summary>

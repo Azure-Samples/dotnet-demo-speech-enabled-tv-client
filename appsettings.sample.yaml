@@ -36,3 +36,7 @@ Analyzer:
   CluResource: YOUR_CLU_RESOURCE
   CluDeploymentName: YOUR_CLU_DEPLOYMENT_NAME
   CluProjectName: YOUR_CLU_PROJECT_NAME
+
+Endpointer:
+  StartOfSpeechWindowInMs: 220
+  EndOfSpeechWindowInMs: 900

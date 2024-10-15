@@ -11,8 +11,6 @@ namespace SpeechEnabledCoPilot.Endpointer
         public class Defaults {
             public static readonly int FRAME_SIZE_MS = 20;
             public static readonly int LEADING_SILENCE_WINDOW_MS = 120;
-            public static readonly int SOS_WINDOW_MS = 220;
-            public static readonly int EOS_WINDOW_MS = 1100;
             public static readonly int COMPLEXITY = 3;
             public static readonly int BIT_RATE_TYPE = OpusVAD.OPUSVAD_BIT_RATE_TYPE_CVBR;
             public static readonly int SENSITIVITY = 20;
@@ -21,8 +19,6 @@ namespace SpeechEnabledCoPilot.Endpointer
 
         public readonly int FRAME_SIZE_MS = Defaults.FRAME_SIZE_MS;
         public readonly int LEADING_SILENCE_WINDOW_MS = Defaults.LEADING_SILENCE_WINDOW_MS;
-        public readonly int SOS_WINDOW_MS = Defaults.SOS_WINDOW_MS;
-        public readonly int EOS_WINDOW_MS = Defaults.EOS_WINDOW_MS;
         public readonly int COMPLEXITY = Defaults.COMPLEXITY;
         public readonly int BIT_RATE_TYPE = Defaults.BIT_RATE_TYPE;
         public readonly int SENSITIVITY = Defaults.SENSITIVITY;

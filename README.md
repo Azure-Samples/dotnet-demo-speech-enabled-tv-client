@@ -91,6 +91,10 @@ Bot Options:
   --BotName                     Azure Bot Name. Default: 
   --BotTokenEndpoint            Azure Bot Token Endpoint. Default: 
   --EndConversationMessage      Message to pass to bot to signal end of conversation. Default: quit
+
+Endpointer Options:
+  --StartOfSpeechWindowInMs     The amount of speech, in ms, needed to trigger start of speech. Default: 220
+  --EndOfSpeechWindowInMs       The amount of trailing silence, in ms, needed to trigger end of speech. Default: 900
 ```
 
 ## Yaml Configuration File
@@ -117,6 +121,7 @@ Recognizer:
   ProfanityOption: masked # raw or masked
   InitialSilenceTimeoutMs: 10000 # in milliseconds
   EndSilenceTimeoutMs: 1200 # in milliseconds
+  RecognitionTimeoutMs: 20000 # in milliseconds
   StablePartialResultThreshold: 2
   CaptureAudio: false # enable to capture audio to file for debug
 
@@ -133,6 +138,10 @@ Analyzer:
   CluResource: YOUR_CLU_RESOURCE
   CluDeploymentName: YOUR_CLU_DEPLOYMENT_NAME
   CluProjectName: YOUR_CLU_PROJECT_NAME
+
+Endpointer:
+  StartOfSpeechWindowInMs: 220
+  EndOfSpeechWindowInMs: 900
 ```
 
 ## Environment Vars

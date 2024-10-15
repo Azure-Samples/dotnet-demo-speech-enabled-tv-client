@@ -58,6 +58,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         private IAudioOutputStream? audioOutFileForDebug;   // audio output stream to capture audio for debug
 
         // Endpointer
+        private EndpointerSettings endpointerSettings = AppSettings.EndpointerSettings();
         private IEndpointer endpointer;
         private Queue<byte[]> audioBuffer = new Queue<byte[]>(); // queue audio data while waiting for StartOfSpeech
         private bool sosDetected { get; set; } // StartOfSpeech detected flag
@@ -110,7 +111,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
             // Initialize the recognizer and endpointer.
             _recognizer = new SpeechRecognizer(config, audioConfig);
-            endpointer = new OpusVADEndpointer(this.logger);
+            endpointer = new OpusVADEndpointer(this.logger, endpointerSettings);
 
             // Initialize the recognition timer
             recognizerTimer = new TimerService(settings.RecognitionTimeoutMs);
@@ -182,7 +183,6 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             // Start the audio stream
             sosDetected = eosDetected = false;
             audioStream = new Microphone(logger);
-            endpointer = new OpusVADEndpointer(logger);
             recognitionTaskCompletionSource = new TaskCompletionSource<bool>();
             audioBuffer = new Queue<byte[]>();
 

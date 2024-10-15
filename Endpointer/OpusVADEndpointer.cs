@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
+using SpeechEnabledCoPilot.Models;
 
 namespace SpeechEnabledCoPilot.Endpointer
 {
@@ -51,7 +52,7 @@ namespace SpeechEnabledCoPilot.Endpointer
 
         /// <summary>
         /// Initializes a new instance of the <see cref="OpusVADEndpointer"/> class.
-        public OpusVADEndpointer(ILogger logger) {
+        public OpusVADEndpointer(ILogger logger, EndpointerSettings settings) {
             this.logger = logger;
 
             // Assign the callback handlers so prevent garbage collection
@@ -64,8 +65,8 @@ namespace SpeechEnabledCoPilot.Endpointer
                 ctx = IntPtr.Zero,
                 complexity = config.COMPLEXITY,
                 bitRateType = config.BIT_RATE_TYPE,
-                sos = config.SOS_WINDOW_MS,
-                eos = config.EOS_WINDOW_MS,
+                sos = settings.StartOfSpeechWindowInMs,
+                eos = settings.EndOfSpeechWindowInMs,
                 speechDetectionSensitivity = config.SENSITIVITY,
                 onSOS = Marshal.GetFunctionPointerForDelegate(_vadSOS),
                 onEOS = Marshal.GetFunctionPointerForDelegate(_vadEOS)
