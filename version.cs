@@ -6,5 +6,5 @@ namespace SpeechEnabledCoPilot;
 public class Version {
 
     // The version of the application.
-    public static readonly string version = "0.0.1";
+    public static readonly string version = "0.0.2";
 }
