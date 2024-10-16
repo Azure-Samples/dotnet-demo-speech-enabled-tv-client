@@ -35,7 +35,8 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         private readonly SpeechEnabledCoPilot.Monitoring.Monitor monitor;
         private Activity? activity;
         private long _audioDurationInMs = 0;
-
+        private DateTime eosTime = DateTime.Now;
+        
         // Settings & configs
         private RecognizerSettings settings = AppSettings.RecognizerSettings();
         private SpeechConfig config;
@@ -67,6 +68,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         private int eosPosition { get; set; } = 0; // EndOfSpeech position
         
         // Flags
+        private int requestId = 0; // request ID to track the recognition requests
         private bool isSubscribedToEvents = false; // flag to check if recognizer has already subscribed to events
 
         /// <summary>
@@ -180,6 +182,11 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// </summary>
         /// <param name="grammarPhrases">The grammar phrases to use.</param>
         private async Task InitializeRecognizer(Analyzer.Analyzer? analyzer, IRecognizerResponseHandler? handler, string[]? grammarPhrases = null) {
+            // Increment the request ID
+            requestId++;
+            monitor.RequestId = requestId;
+            activity?.SetTag("RequestId", requestId);
+
             // Start the audio stream
             sosDetected = eosDetected = false;
             audioStream = new Microphone(logger);
@@ -217,8 +224,6 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// Subscribes to the recognizer events.
         /// </summary>
         private void SubscribeToEvents(Analyzer.Analyzer? analyzer, IRecognizerResponseHandler? handler) {
-            DateTime eosTime = DateTime.Now;
-
             if (!isSubscribedToEvents) {
                 // Subscribe to events.
                 _recognizer.SessionStarted += (s, e) => {
@@ -233,7 +238,8 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                                         DateTimeOffset.UtcNow,
                                         new ActivityTagsCollection
                                         {
-                                            {"SessionId", e.SessionId}
+                                            {"SessionId", e.SessionId},
+                                            {"RequestId", requestId}
                                         }));
                     activity?.SetTag("SessionId", e.SessionId);
 
@@ -243,17 +249,17 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                 _recognizer.SessionStopped += (s, e) => {
                     StopAudioStream();
                     
-                    // Clear the session ID
-                    monitor.SessionId = string.Empty;
-
                     // Log the session stop event
                     activity?.AddEvent(new ActivityEvent("SessionStopped",
                                         DateTimeOffset.UtcNow, 
                                         new ActivityTagsCollection
                                         {
-                                            {"SessionId", e.SessionId}
+                                            {"SessionId", e.SessionId},
+                                            {"RequestId", requestId}
                                         }));
-                    activity?.SetTag("SessionId", e.SessionId);
+
+                    // Clear the session ID
+                    monitor.SessionId = string.Empty;
 
                     // Call the handler
                     handler?.onRecognitionComplete(e.SessionId);
@@ -265,28 +271,31 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                                         new ActivityTagsCollection
                                         {
                                             {"Offset", (long)e.Offset / 10000},
-                                            {"SessionId", monitor.SessionId}
+                                            {"SessionId", monitor.SessionId},
+                                            {"RequestId", requestId}
                                         }));
                     
                     // Call the handler
                     handler?.onSpeechStartDetected(e.SessionId, (long)e.Offset);
                 };
                 _recognizer.SpeechEndDetected += (s, e) => {
-                    // UpdateRecognitionTaskCompletionSource(); handler.onSpeechEndDetected(e.SessionId, (long)e.Offset);
-                    // Capture the end of speech time for latency calculation
-                    eosTime = DateTime.Now;
-
                     // Log the speech end detected event
                     activity?.AddEvent(new ActivityEvent("SpeechEndDetected", 
                                         DateTimeOffset.UtcNow, 
                                         new ActivityTagsCollection
                                         {
                                             {"Offset", (long)e.Offset / 10000},
-                                            {"SessionId", monitor.SessionId}
+                                            {"SessionId", monitor.SessionId},
+                                            {"RequestId", requestId}
                                         }));
 
-                    // Signal to stop recognition
-                    UpdateRecognitionTaskCompletionSource();
+                    // Capture the end of speech time for latency calculation
+                    if (!eosDetected) {
+                        eosTime = DateTime.Now;
+
+                        // Signal to stop recognition
+                        UpdateRecognitionTaskCompletionSource();
+                    }
 
                     // Call the handler
                     handler?.onSpeechEndDetected(e.SessionId, (long)e.Offset);
@@ -298,7 +307,8 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                                         new ActivityTagsCollection
                                         {
                                             {"Transcription", e.Result.Text},
-                                            {"SessionId", monitor.SessionId}
+                                            {"SessionId", monitor.SessionId},
+                                            {"RequestId", requestId}
                                         }));
                     
                     // Call the handler
@@ -308,6 +318,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                 {
                     // Calculate the latency from the end of speech to the recognition result
                     TimeSpan latency = DateTime.Now - eosTime;
+                    activity?.SetTag("Latency", (long)latency.TotalMilliseconds);
 
                     if (e.Result.Reason == ResultReason.RecognizedSpeech)
                     {
@@ -322,7 +333,8 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                                         {
                                             {"Transcription", e.Result.Best()?.FirstOrDefault()?.Text},
                                             {"ConfidenceScore", e.Result.Best()?.FirstOrDefault()?.Confidence},
-                                            {"SessionId", monitor.SessionId}
+                                            {"SessionId", monitor.SessionId},
+                                            {"RequestId", requestId}
                                         }));
                         activity?.SetTag("Disposition", "Success");
                         activity?.SetTag("Transcription", e.Result.Best()?.FirstOrDefault()?.Text);
@@ -334,7 +346,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                         {
                             try
                             {
-                                handler?.onAnalysisResult(e.SessionId, analyzer.Analyze(e.Result.Text, e.SessionId));
+                                handler?.onAnalysisResult(e.SessionId, analyzer.Analyze(e.Result.Text, e.SessionId, requestId));
                             }
                             catch (RequestFailedException rfe)
                             {
@@ -359,7 +371,8 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                                         new ActivityTagsCollection
                                         {
                                             {"Reason", noMatchDetails.Reason.ToString()},
-                                            {"SessionId", monitor.SessionId}
+                                            {"SessionId", monitor.SessionId},
+                                            {"RequestId", requestId}
                                         }));
                         activity?.SetTag("Disposition", "NoMatch");
                         activity?.SetTag("Reason", noMatchDetails.Reason.ToString());
@@ -376,7 +389,8 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                                         new ActivityTagsCollection
                                         {
                                             {"Reason", e.Reason.ToString()},
-                                            {"SessionId", monitor.SessionId}
+                                            {"SessionId", monitor.SessionId},
+                                            {"RequestId", requestId}
                                         }));
                     if (e.Reason == CancellationReason.Error)
                     {
@@ -475,15 +489,39 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         }
 
         /// <summary>
+        /// Streams audio data to the recognizer.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this audio data.</param>
+        /// <param name="data">The audio data to stream.</param>
+        private void StreamAudio(string sessionId, byte[] data) {
+            // Log the audio data event
+            activity?.AddEvent(new ActivityEvent("AudioData", 
+                DateTimeOffset.UtcNow, 
+                new ActivityTagsCollection
+                {
+                    {"Size", data.Length},
+                    {"Duration", data.Length / 640 * 20},
+                    {"SessionId", sessionId},
+                    {"RequestId", requestId}
+                }));
+
+            // track how much audio is being captured
+            _audioDurationInMs += (data.Length / 640 * 20);
+
+            inputStream?.Write(data, data.Length);
+        }
+
+        /// <summary>
         /// Streams buffered audio data to the recognizer.
         /// </summary>
+        /// <param name="sessionId">The session ID associated with this audio data.</param>
         /// <param name="data">The audio data to stream.</param>
         /// <returns></returns>
         /// <remarks>
         /// This method streams the buffered audio data to the recognizer after StartOfSpeech is detected.
         /// It discards the audio data that came before StartOfSpeech.
         /// </remarks>
-        private void StreamBufferedAudio(byte[] data) {
+        private void StreamBufferedAudio(string sessionId, byte[] data) {
             // How many samples in the buffer?
             int totalSamplesBuffered = audioBuffer.Count * (data.Length/sizeof(Int16));
             
@@ -499,7 +537,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
                 // Keep dequeueing until we've discarded enough and then start streaming
                 byte[] audioData = audioBuffer.Dequeue();
                 if (--discardCount < 0) {
-                    inputStream?.Write(audioData, audioData.Length);
+                    StreamAudio(sessionId, audioData);
                 }
             }
         }
@@ -520,7 +558,19 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// <param name="e">The event arguments.</param>
         public void OnRecognitionTimerExpired(object? sender, TimerServiceEventArgs e)
         {
-            logger.LogInformation($"[{e.SessionId}] Timer elapsed: {e.SignalTime:G}");
+            logger.LogWarning($"[{e.SessionId}] Recognition timer elapsed: {e.SignalTime:G}");
+
+            // Log the expiration event
+            activity?.AddEvent(new ActivityEvent("RecognitionTimerExpired", 
+                                DateTimeOffset.UtcNow, 
+                                new ActivityTagsCollection
+                                {
+                                    {"Timeout", (long)settings.RecognitionTimeoutMs},
+                                    {"SessionId", e.SessionId},
+                                    {"RequestId", requestId}
+                                }));
+
+            eosTime = DateTime.Now;
             UpdateRecognitionTaskCompletionSource(); // Signal recognition completion
         }
 
@@ -555,19 +605,6 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// <param name="data">The audio data.</param>
         public void onAudioData(string sessionId, byte[] data)
         {
-            // Log the audio data event
-            activity?.AddEvent(new ActivityEvent("AudioData", 
-                DateTimeOffset.UtcNow, 
-                new ActivityTagsCollection
-                {
-                    {"Size", data.Length},
-                    {"Duration", data.Length / 640 * 20},
-                    {"SessionId", sessionId}
-                }));
-
-            // track how much audio is being captured
-            _audioDurationInMs += (data.Length / 640 * 20);
-
             // save audio to file for debug if feature is enabled
             if (settings.CaptureAudio && audioOutFileForDebug != null) {
                 audioOutFileForDebug.onAudioData(data);
@@ -587,13 +624,13 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
 
             } else if (sosDetected && audioBuffer.Count > 0) {
                 // If we have StartOfSpeech and audio buffer, we can start streaming
-                StreamBufferedAudio(data);
+                StreamBufferedAudio(sessionId, data);
 
                 // And stream the current audio data
-                inputStream?.Write(data, data.Length);
+                StreamAudio(sessionId, data);
             } else {
                 // Stream live audio data
-                inputStream?.Write(data, data.Length);
+                StreamAudio(sessionId, data);
             }
         }
         
@@ -604,7 +641,18 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// </summary>
         /// <param name="position">The position in the audio stream.</param>
         public void OnStartOfSpeech(int position) {
-            logger.LogInformation($"[{monitor.SessionId}] Client start of speech detected at {position}ms");
+            logger.LogInformation($"[{Identifier(monitor.SessionId)}] Client start of speech detected at {position}ms");
+
+            // Log the client-side speech start detected event
+            activity?.AddEvent(new ActivityEvent("ClientSideOnStartOfSpeechDetected", 
+                                DateTimeOffset.UtcNow, 
+                                new ActivityTagsCollection
+                                {
+                                    {"Position", (long)position},
+                                    {"SessionId", monitor.SessionId},
+                                    {"RequestId", requestId}
+                                }));
+
             sosPosition = position;
             sosDetected = true;
         }
@@ -614,9 +662,21 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// </summary>
         /// <param name="position">The position in the audio stream.</param>
         public void OnEndOfSpeech(int position) {
-            logger.LogInformation($"[{monitor.SessionId}] Client end of speech detected at {position}ms");
+            logger.LogInformation($"[{Identifier(monitor.SessionId)}] Client end of speech detected at {position}ms");
+
+            // Log the client-side speech end detected event
+            activity?.AddEvent(new ActivityEvent("ClientSideOnEndOfSpeechDetected", 
+                                DateTimeOffset.UtcNow, 
+                                new ActivityTagsCollection
+                                {
+                                    {"Position", (long)position},
+                                    {"SessionId", monitor.SessionId},
+                                    {"RequestId", requestId}
+                                }));
+
             eosPosition = position;
             eosDetected = true;
+            eosTime = DateTime.Now;
 
             // Signal that recognition is ready for completion
             UpdateRecognitionTaskCompletionSource();
@@ -627,34 +687,47 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// </summary>
         /// <param name="errorCode">The error code.</param>
         public void OnProcessingError(int errorCode) {
-            logger.LogError($"[{monitor.SessionId}] Endpointer failed to process audio with error code: {errorCode}");
+            logger.LogError($"[{Identifier(monitor.SessionId)}] Endpointer failed to process audio with error code: {errorCode}");
+
+            // Log the client-side endpointer processing error event
+            activity?.AddEvent(new ActivityEvent("ClientSideEndpointerProcessingError", 
+                                DateTimeOffset.UtcNow, 
+                                new ActivityTagsCollection
+                                {
+                                    {"ErrorCode", (long)errorCode},
+                                    {"SessionId", monitor.SessionId},
+                                    {"RequestId", requestId}
+                                }));
         }
 
         /// Recognizer response handler methods
+        private string Identifier(string sessionId) {
+            return $"{sessionId}.{requestId}";
+        }
 
         public void onRecognitionStarted(string sessionId)
         {
-            logger.LogInformation($"[{sessionId}] Recognition started");
+            logger.LogInformation($"[{Identifier(sessionId)}] Recognition started");
         }
 
         public void onRecognitionComplete(string sessionId)
         {
-            logger.LogInformation($"[{sessionId}] Recognition complete");
+            logger.LogInformation($"[{Identifier(sessionId)}] Recognition complete");
         }
 
         public void onSpeechStartDetected(string sessionId, long offset)
         {
-            logger.LogInformation($"[{sessionId}] Speech start detected: offset = {offset / 10000}");
+            logger.LogInformation($"[{Identifier(sessionId)}] Speech start detected: offset = {offset / 10000}");
         }
 
         public void onSpeechEndDetected(string sessionId, long offset)
         {
-            logger.LogInformation($"[{sessionId}] Speech end detected: offset = {offset / 10000}");
+            logger.LogInformation($"[{Identifier(sessionId)}] Speech end detected: offset = {offset / 10000}");
         }
 
         public void onRecognitionResult(string sessionId, long offset, SpeechRecognitionResult result)
         {
-            logger.LogInformation($"[{sessionId}] Streaming recognition result: {result.Text}");
+            logger.LogInformation($"[{Identifier(sessionId)}] Streaming recognition result: {result.Text}");
         }
 
         public void onFinalRecognitionResult(string sessionId, long offset, System.Collections.Generic.IEnumerable<DetailedSpeechRecognitionResult> results)
@@ -663,27 +736,27 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             var topResult = results.FirstOrDefault();
             if (topResult != null)
             {
-                logger.LogInformation($"[{sessionId}] Final recognition result: {topResult.Text} (confidence score = {topResult.Confidence:F3})");
+                logger.LogInformation($"[{Identifier(sessionId)}] Final recognition result: {topResult.Text} (confidence score = {topResult.Confidence:F3})");
             }
             else
             {
-                logger.LogError($"[{sessionId}] No recognition results found.");
+                logger.LogError($"[{Identifier(sessionId)}] No recognition results found.");
             }
         }
 
         public void onRecognitionNoMatch(string sessionId, long offset, string reason, SpeechRecognitionResult result)
         {
-            logger.LogInformation($"[{sessionId}] Recognition no match: {reason}");
+            logger.LogInformation($"[{Identifier(sessionId)}] Recognition no match: {reason}");
         }
 
         public void onRecognitionCancelled(string sessionId, long offset, CancellationDetails details)
         {
-            logger.LogError($"[{sessionId}] Recognition cancelled: {details.Reason.ToString()}");
+            logger.LogError($"[{Identifier(sessionId)}] Recognition cancelled: {details.Reason.ToString()}");
         }
 
         public void onRecognitionError(string sessionId, string error, string details)
         {
-            logger.LogError($"[{sessionId}] Recognition error: {error} - {details}");
+            logger.LogError($"[{Identifier(sessionId)}] Recognition error: {error} - {details}");
         }
 
         public void onAnalysisResult(string sessionId, AnalyzerResponse response)
@@ -691,32 +764,32 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
             if (!response.IsError) {
                 Interpretation interpretation = response.interpretation;
                 Prediction prediction = interpretation.result.prediction;
-                logger.LogInformation($"[{sessionId}] Analysis result: ");
-                logger.LogInformation($"[{sessionId}]\tIntent: {prediction.topIntent} ({prediction.intents[0].confidenceScore})");
+                logger.LogInformation($"[{Identifier(sessionId)}] Analysis result: ");
+                logger.LogInformation($"[{Identifier(sessionId)}]\tIntent: {prediction.topIntent} ({prediction.intents[0].confidenceScore})");
 
-                logger.LogInformation($"[{sessionId}]\tEntities:");
+                logger.LogInformation($"[{Identifier(sessionId)}]\tEntities:");
                 foreach (Entity entity in prediction.entities)
                 {
-                    logger.LogInformation($"[{sessionId}]\t\tCategory: {entity.category}");
-                    logger.LogInformation($"[{sessionId}]\t\t\tText: {entity.text}");
-                    logger.LogInformation($"[{sessionId}]\t\t\tOffset: {entity.offset}");
-                    logger.LogInformation($"[{sessionId}]\t\t\tLength: {entity.length}");
-                    logger.LogInformation($"[{sessionId}]\t\t\tConfidence: {entity.confidenceScore}");
+                    logger.LogInformation($"[{Identifier(sessionId)}]\t\tCategory: {entity.category}");
+                    logger.LogInformation($"[{Identifier(sessionId)}]\t\t\tText: {entity.text}");
+                    logger.LogInformation($"[{Identifier(sessionId)}]\t\t\tOffset: {entity.offset}");
+                    logger.LogInformation($"[{Identifier(sessionId)}]\t\t\tLength: {entity.length}");
+                    logger.LogInformation($"[{Identifier(sessionId)}]\t\t\tConfidence: {entity.confidenceScore}");
                 }
 
             }
             else if (response.HasErrorResponse) {
                 ErrorResponse error = response.error;
-                logger.LogError($"[{sessionId}] Error: {error?.content?.error?.message}");
+                logger.LogError($"[{Identifier(sessionId)}] Error: {error?.content?.error?.message}");
             }
             else {
-                logger.LogError($"[{sessionId}] Error: could not parse response");
+                logger.LogError($"[{Identifier(sessionId)}] Error: could not parse response");
             }
         }
 
         public void onAnalysisError(string sessionId, string error, string details)
         {
-            logger.LogError($"[{sessionId}] Analysis error: {sessionId} with error: {error} and details: {details}");
+            logger.LogError($"[{Identifier(sessionId)}] Analysis error: {Identifier(sessionId)} with error: {error} and details: {details}");
         }
     }
 }
