@@ -28,6 +28,7 @@ namespace SpeechEnabledCoPilot.Monitoring
         protected Histogram<long> Latency { get; set; }
 
         public string SessionId { get; set; } = string.Empty;
+        public int RequestId { get; set; } = 0;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Monitor"/> class.
@@ -134,7 +135,7 @@ namespace SpeechEnabledCoPilot.Monitoring
         /// <param name="status">The status of the request.</param>
         public void IncrementRequests(string status)
         {
-            NumRequests?.Record(1, new("Status", status), new("SessionId", SessionId));
+            NumRequests?.Record(1, new("Status", status), new("SessionId", SessionId), new("RequestId", RequestId));
         }
 
         /// <summary>
@@ -144,7 +145,7 @@ namespace SpeechEnabledCoPilot.Monitoring
         /// <param name="status">The status of the request.</param>
         public void RecordLatency(long latency, string status)
         {
-            Latency?.Record(latency, new("Status", "Success"), new("SessionId", SessionId));
+            Latency?.Record(latency, new("Status", "Success"), new("SessionId", SessionId), new("RequestId", RequestId));
         }
     }
 }
