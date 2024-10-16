@@ -84,7 +84,7 @@ namespace SpeechEnabledCoPilot.Services.Analyzer
         /// <param name="input"></param>
         /// <param name="sessionId"></param>
         /// <returns>AnalyzerResponse</returns>
-        public AnalyzerResponse Analyze(string input, string? sessionId = null)
+        public AnalyzerResponse Analyze(string input, string? sessionId = null, int requestId = 0)
         {
             using (activity = monitor.activitySource.StartActivity("Analyze"))
             {
@@ -92,7 +92,9 @@ namespace SpeechEnabledCoPilot.Services.Analyzer
                 {
                     monitor.SessionId = sessionId;
                 }
+                monitor.RequestId = requestId;
                 activity?.SetTag("SessionId", monitor.SessionId);
+                activity?.SetTag("RequestId", monitor.RequestId);
                 
                 DateTime start = DateTime.Now;
                 Response? response = null;
@@ -127,7 +129,7 @@ namespace SpeechEnabledCoPilot.Services.Analyzer
                         activity?.SetTag("Result", JsonSerializer.Serialize(interpration.result));
 
                         if (sessionId != null) {
-                            logger.LogInformation($"[{sessionId}] Interpretation: {0}", interpration.result.prediction.topIntent);
+                            logger.LogInformation($"[{sessionId}.{requestId}] Interpretation: {0}", interpration.result.prediction.topIntent);
                         } else {
                             logger.LogInformation("Interpretation: {0}", interpration.result.prediction.topIntent);
                         }
@@ -142,7 +144,7 @@ namespace SpeechEnabledCoPilot.Services.Analyzer
                     latency = (long)(DateTime.Now - start).TotalMilliseconds;
 
                     if (response == null || response.ContentStream == null) {
-                        logger.LogError("Exception returned from the analyzer.");
+                        logger.LogError($"[{sessionId}.{requestId}] Exception returned from the analyzer.");
                         ErrorResponse errorResponse = ErrorResponse.FromContentStream(ex.Message);
 
                         monitor.IncrementRequests("Error");
