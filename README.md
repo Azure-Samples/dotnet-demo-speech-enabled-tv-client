@@ -1,13 +1,13 @@
 # Azure Cognitive Services Demo Client for TV and Devices Solutions
 
-This project provides a demo client that helps illustrate how to build speech-enabled client solutions that leverage Azure Cognitive Services and CoPilot Studio Bots. The client builds on top of existing Microsoft sample code, pulling together details specific to delivering a successful integration for the TV and Devices solution space.
+This project provides a demo client that helps illustrate how to build speech-enabled client solutions that leverage Azure Cognitive Services and Microsoft Copilot Studio Bots. The client builds on top of existing Microsoft sample code, pulling together details specific to delivering a successful integration for the TV and Devices solution space.
 
 The Azure Cognitive Services used by the demo client include:
 
 * Azure Speech-to-Text (STT)
 * Azure Text-to-Speech (TTS)
 * Azure Conversational Language Understanding (CLU)
-* Microsoft CoPilot Studio (MCS)
+* Microsoft Copilot Studio (MCS)
 
 ## Azure Requirements
 
@@ -17,7 +17,7 @@ Before getting started with the demo client, you will need to have an Azure subs
     * [STT](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/get-started-speech-to-text?tabs=macos%2Cterminal&pivots=ai-studio#prerequisites)
     * [TTS](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/get-started-text-to-speech?tabs=macos%2Cterminal&pivots=programming-language-csharp#prerequisites)
 * [CLU](https://learn.microsoft.com/en-us/azure/ai-services/language-service/conversational-language-understanding/quickstart?pivots=language-studio)
-* [CoPilot Studio Bot](https://learn.microsoft.com/en-us/microsoft-copilot-studio/fundamentals-get-started?tabs=web) *optional*
+* [Copilot Studio Bot](https://learn.microsoft.com/en-us/microsoft-copilot-studio/fundamentals-get-started?tabs=web)
 
 ## Client Requirements
 
@@ -29,7 +29,7 @@ Before getting started with the demo client, you will need to have an Azure subs
 
 * Speech Recogntion
 * Conversational Language Understanding
-* Speech Recogntion + Conversational Understanding
+* Speech Recognition + Conversational Understanding
 * Text to Speech
 * Audio Recorder
 * Speech-Enabled Virtual Assistant
@@ -148,7 +148,7 @@ Endpointer:
 
 All command-line args can be passed in as an environment var. 
 
-Environment var naming convention is `AILDEMO_\<cli option name\>`
+Environment var naming convention is `AILDEMO_<cli option name>`
 
 Example: AzureKeyVaultUri --> AILDEMO_AzureKeyVaultUri
 
