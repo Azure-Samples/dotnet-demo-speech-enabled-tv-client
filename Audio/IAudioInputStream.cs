@@ -1,4 +1,4 @@
-namespace SpeechEnabledCoPilot.Audio {
+namespace SpeechEnabledTvClient .Audio {
     
     /// <summary>
     /// Represents an audio input stream that can be started and stopped.

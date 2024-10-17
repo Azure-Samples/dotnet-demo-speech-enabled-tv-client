@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace SpeechEnabledCoPilot.Endpointer {
+namespace SpeechEnabledTvClient .Endpointer {
 
     /// <summary>
     /// Represents the OpusVAD class.

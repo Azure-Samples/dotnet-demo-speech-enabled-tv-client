@@ -1,12 +1,12 @@
-using SpeechEnabledCoPilot.Models;
+using SpeechEnabledTvClient .Models;
 using Microsoft.Bot.Connector.DirectLine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.CognitiveServices.Speech;
 using System.Text.Json;
-using SpeechEnabledCoPilot.Services.Recognizer;
-using SpeechEnabledCoPilot.Services.Analyzer;
+using SpeechEnabledTvClient .Services.Recognizer;
+using SpeechEnabledTvClient .Services.Analyzer;
 
-namespace SpeechEnabledCoPilot.Services.Bot
+namespace SpeechEnabledTvClient .Services.Bot
 {
     public class CoPilotClient : IRecognizerResponseHandler
     {
@@ -68,7 +68,7 @@ namespace SpeechEnabledCoPilot.Services.Bot
         }
 
 
-        public async Task StartConversation(SpeechEnabledCoPilot.Services.Recognizer.Recognizer? recognizer)
+        public async Task StartConversation(SpeechEnabledTvClient .Services.Recognizer.Recognizer? recognizer)
         {
             if (_botService == null)
             {
@@ -182,7 +182,7 @@ namespace SpeechEnabledCoPilot.Services.Bot
             return (_userInput == null) ? "" : _userInput;
         }
 
-        private string GetUserInput(SpeechEnabledCoPilot.Services.Recognizer.Recognizer recognizer) {
+        private string GetUserInput(SpeechEnabledTvClient .Services.Recognizer.Recognizer recognizer) {
             // _userInput = "";
             string[] phrases = new string[] { "SPIDER-MAN" };
 

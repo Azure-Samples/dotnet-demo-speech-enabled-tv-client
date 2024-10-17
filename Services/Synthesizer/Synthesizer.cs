@@ -4,13 +4,13 @@ using System.IO;
 using System.Threading.Tasks;
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
-using SpeechEnabledCoPilot.Models;
-using SpeechEnabledCoPilot.Audio;
-using SpeechEnabledCoPilot.Monitoring;
+using SpeechEnabledTvClient .Models;
+using SpeechEnabledTvClient .Audio;
+using SpeechEnabledTvClient .Monitoring;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
-namespace SpeechEnabledCoPilot.Services.Synthesizer
+namespace SpeechEnabledTvClient .Services.Synthesizer
 {
 
     /// <summary>
@@ -20,7 +20,7 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
     {
         // properties for logging and monitoring
         ILogger logger;
-        SpeechEnabledCoPilot.Monitoring.Monitor monitor;
+        SpeechEnabledTvClient .Monitoring.Monitor monitor;
         Activity? activity;
 
         // Settings and config
@@ -47,7 +47,7 @@ namespace SpeechEnabledCoPilot.Services.Synthesizer
         /// <summary>
         /// Initializes a new instance of the <see cref="Synthesizer"/> class.
         /// </summary>
-        public Synthesizer(ILogger logger, SpeechEnabledCoPilot.Monitoring.Monitor monitor)
+        public Synthesizer(ILogger logger, SpeechEnabledTvClient .Monitoring.Monitor monitor)
         {
             this.logger = logger;
             this.monitor = monitor.Initialize("TTS");

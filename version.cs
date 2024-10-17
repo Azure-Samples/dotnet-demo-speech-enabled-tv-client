@@ -1,4 +1,4 @@
-namespace SpeechEnabledCoPilot;
+namespace SpeechEnabledTvClient ;
 
 /// <summary>
 /// Represents the version of the application.

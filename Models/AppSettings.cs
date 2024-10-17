@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Azure.Identity;
 
-namespace SpeechEnabledCoPilot.Models
+namespace SpeechEnabledTvClient .Models
 {
     
     /// <summary>

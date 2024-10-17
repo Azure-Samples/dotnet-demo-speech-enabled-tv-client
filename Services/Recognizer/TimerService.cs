@@ -1,7 +1,7 @@
 using System;
 using System.Timers;
 
-namespace SpeechEnabledCoPilot.Services.Recognizer
+namespace SpeechEnabledTvClient .Services.Recognizer
 {
     /// <summary>
     /// Represents the event handler for the timer service.

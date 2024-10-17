@@ -3,14 +3,14 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using System.Text.Json;
-using SpeechEnabledCoPilot.Models;
-using SpeechEnabledCoPilot.Monitoring;
-using SpeechEnabledCoPilot.Services.Analyzer;
-using SpeechEnabledCoPilot.Services.Bot;
-using SpeechEnabledCoPilot.Services.Recognizer;
-using SpeechEnabledCoPilot.Services.Synthesizer;
+using SpeechEnabledTvClient .Models;
+using SpeechEnabledTvClient .Monitoring;
+using SpeechEnabledTvClient .Services.Analyzer;
+using SpeechEnabledTvClient .Services.Bot;
+using SpeechEnabledTvClient .Services.Recognizer;
+using SpeechEnabledTvClient .Services.Synthesizer;
 
-namespace SpeechEnabledCoPilot
+namespace SpeechEnabledTvClient 
 {
     public class Program
     {
@@ -77,8 +77,8 @@ namespace SpeechEnabledCoPilot
         // ASR + NLU
         public void RecognizeAndAnalyze()
         {
-            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledCoPilot.Monitoring.Monitor(settings));
-            Analyzer analyzer = new Analyzer(logger, new SpeechEnabledCoPilot.Monitoring.Monitor(settings));
+            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
+            Analyzer analyzer = new Analyzer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
 
             string input = string.Empty;
             while (input != "quit")
@@ -96,7 +96,7 @@ namespace SpeechEnabledCoPilot
         // ASR only
         public void Recognize()
         {
-            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledCoPilot.Monitoring.Monitor(settings));
+            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
             
             string input = string.Empty;
             while (input != "quit")
@@ -114,7 +114,7 @@ namespace SpeechEnabledCoPilot
         // NLU only
         public void Analyze()
         {
-            Analyzer analyzer = new Analyzer(logger, new SpeechEnabledCoPilot.Monitoring.Monitor(settings));
+            Analyzer analyzer = new Analyzer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
 
             string input = string.Empty;
             restoreHistory(analyzerHistory);
@@ -161,7 +161,7 @@ namespace SpeechEnabledCoPilot
         // TTS
         public void Synthesize()
         {
-            Synthesizer synthesizer = new Synthesizer(logger, new SpeechEnabledCoPilot.Monitoring.Monitor(settings));
+            Synthesizer synthesizer = new Synthesizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
 
             string input = string.Empty;
             restoreHistory(synthesizerHistory);
@@ -183,7 +183,7 @@ namespace SpeechEnabledCoPilot
         // CoPilot Studio Bot
         public void StartConversation()
         {
-            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledCoPilot.Monitoring.Monitor(settings));
+            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
             CoPilotClient client = new CoPilotClient();
             client.StartConversation(recognizer).Wait();
         }
@@ -273,16 +273,45 @@ namespace SpeechEnabledCoPilot
             ReadLine.AddHistory(history.ToArray());
         }
 
+        public static AppSettings loadAppSettings(string[] args) {
+            // Display a spinner while loading app settings
+            var spinner = new[] { '|', '/', '-', '\\' };
+            int spinnerIndex = 0;
+            bool loading = true;
+
+            Task.Run(async () =>
+            {
+                while (loading)
+                {
+                    Console.SetCursorPosition(0, Console.CursorTop);
+                    Console.Write($"Loading settings... {spinner[spinnerIndex]}");
+                    spinnerIndex = (spinnerIndex + 1) % spinner.Length;
+                    await Task.Delay(100);
+                }
+                Console.SetCursorPosition(0, Console.CursorTop);
+                Console.Write(new string(' ', Console.WindowWidth)); // Clear the spinner line
+                Console.SetCursorPosition(0, Console.CursorTop);
+            });
+
+            // Load app settings
+            AppSettings appSettings = AppSettings.LoadAppSettings(args);
+            loading = false;
+            return appSettings;
+        }
+
         // Main entry point
         static void Main(string[] args)
         {
+            Console.WriteLine($"Client version: {Version.version}");
+            Console.WriteLine("Welcome to the Speech-Enabled TV Client!");
+
             if (args.Contains("-h") || args.Contains("--help"))
             {
                 showUsage();
                 return;
             }
 
-            AppSettings appSettings = AppSettings.LoadAppSettings(args);
+            AppSettings appSettings = loadAppSettings(args);
             Program app = new Program(appSettings);
 
             showMenu();

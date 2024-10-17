@@ -1,4 +1,4 @@
-namespace SpeechEnabledCoPilot.Endpointer
+namespace SpeechEnabledTvClient .Endpointer
 {
     /// <summary>
     /// Configuration for the Opus VAD.

@@ -2,11 +2,11 @@ using Azure.Monitor.OpenTelemetry.Exporter;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
-using SpeechEnabledCoPilot.Models;
+using SpeechEnabledTvClient .Models;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-namespace SpeechEnabledCoPilot.Monitoring
+namespace SpeechEnabledTvClient .Monitoring
 {
     /// <summary>
     /// Represents the monitor for the application.

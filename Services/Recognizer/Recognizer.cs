@@ -8,11 +8,11 @@ using Azure.Core;
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
 using Microsoft.Extensions.Logging;
-using SpeechEnabledCoPilot.Audio;
-using SpeechEnabledCoPilot.Endpointer;
-using SpeechEnabledCoPilot.Models;
-using SpeechEnabledCoPilot.Monitoring;
-using SpeechEnabledCoPilot.Services.Analyzer;
+using SpeechEnabledTvClient .Audio;
+using SpeechEnabledTvClient .Endpointer;
+using SpeechEnabledTvClient .Models;
+using SpeechEnabledTvClient .Monitoring;
+using SpeechEnabledTvClient .Services.Analyzer;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -23,7 +23,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 
-namespace SpeechEnabledCoPilot.Services.Recognizer
+namespace SpeechEnabledTvClient .Services.Recognizer
 {
     /// <summary>
     /// Represents the speech recognizer.
@@ -32,7 +32,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
     {
         // properties for logging and monitoring
         private readonly ILogger logger;
-        private readonly SpeechEnabledCoPilot.Monitoring.Monitor monitor;
+        private readonly SpeechEnabledTvClient .Monitoring.Monitor monitor;
         private Activity? activity;
         private long _audioDurationInMs = 0;
         private DateTime eosTime = DateTime.Now;
@@ -76,7 +76,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// </summary>
         /// <param name="logger">The logger to use.</param>
         /// <param name="monitor">The monitor to use.</param>
-        public Recognizer(ILogger logger, SpeechEnabledCoPilot.Monitoring.Monitor monitor)
+        public Recognizer(ILogger logger, SpeechEnabledTvClient .Monitoring.Monitor monitor)
         {
             // Initialize the logger and monitor
             this.logger = logger;

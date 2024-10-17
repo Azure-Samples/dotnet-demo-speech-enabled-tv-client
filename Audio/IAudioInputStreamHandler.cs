@@ -1,4 +1,4 @@
-namespace SpeechEnabledCoPilot.Audio
+namespace SpeechEnabledTvClient .Audio
 {
 
     /// <summary>

@@ -1,7 +1,7 @@
-using SpeechEnabledCoPilot.Audio;
+using SpeechEnabledTvClient .Audio;
 using Microsoft.Extensions.Logging;
 
-namespace SpeechEnabledCoPilot.Services.Recognizer
+namespace SpeechEnabledTvClient .Services.Recognizer
 {
     /// <summary>
     /// Records audio from the microphone and saves it to file.

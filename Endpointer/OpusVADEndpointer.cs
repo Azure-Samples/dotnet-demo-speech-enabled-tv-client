@@ -1,9 +1,9 @@
 using System;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
-using SpeechEnabledCoPilot.Models;
+using SpeechEnabledTvClient .Models;
 
-namespace SpeechEnabledCoPilot.Endpointer
+namespace SpeechEnabledTvClient .Endpointer
 {
     public class OpusVADEndpointer : IEndpointer {
         private ILogger logger;

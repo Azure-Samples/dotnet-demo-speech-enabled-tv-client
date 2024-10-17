@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 
-namespace SpeechEnabledCoPilot.Audio
+namespace SpeechEnabledTvClient .Audio
 {
     /// <summary>
     /// Supports the default speaker device as an audio output stream.

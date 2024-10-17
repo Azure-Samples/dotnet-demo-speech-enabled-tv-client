@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
-using SpeechEnabledCoPilot.Audio;
-using SpeechEnabledCoPilot.Models;
+using SpeechEnabledTvClient .Audio;
+using SpeechEnabledTvClient .Models;
 
 public class AudioOutputStreamFactory
 {

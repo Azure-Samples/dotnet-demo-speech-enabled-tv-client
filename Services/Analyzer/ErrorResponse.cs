@@ -30,7 +30,7 @@ using System.Text.Json;
     Content-Type: application/json
 */
 
-namespace SpeechEnabledCoPilot.Services.Analyzer
+namespace SpeechEnabledTvClient .Services.Analyzer
 {
     /// <summary>
     /// Represents an error response from the Azure CLU service.

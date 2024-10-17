@@ -2,8 +2,8 @@ using Azure;
 using Azure.Core;
 using Azure.AI.Language.Conversations;
 using Microsoft.Extensions.Logging;
-using SpeechEnabledCoPilot.Models;
-using SpeechEnabledCoPilot.Monitoring;
+using SpeechEnabledTvClient .Models;
+using SpeechEnabledTvClient .Monitoring;
 using System;
 using System.Diagnostics;
 using System.Net.Http;
@@ -11,7 +11,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SpeechEnabledCoPilot.Services.Analyzer
+namespace SpeechEnabledTvClient .Services.Analyzer
 {
     /// <summary>
     /// Represents the Azure CLU analyzer.
@@ -19,7 +19,7 @@ namespace SpeechEnabledCoPilot.Services.Analyzer
     public class Analyzer
     {
         ILogger logger;
-        SpeechEnabledCoPilot.Monitoring.Monitor monitor;
+        SpeechEnabledTvClient .Monitoring.Monitor monitor;
         Activity? activity;
 
         AnalyzerSettings settings = AppSettings.AnalyzerSettings();
@@ -30,7 +30,7 @@ namespace SpeechEnabledCoPilot.Services.Analyzer
         /// </summary>
         /// <param name="logger">The logger to use.</param>
         /// <param name="monitor">The monitor to use.</param>
-        public Analyzer(ILogger logger, SpeechEnabledCoPilot.Monitoring.Monitor monitor)
+        public Analyzer(ILogger logger, SpeechEnabledTvClient .Monitoring.Monitor monitor)
         {
             this.logger = logger;
             this.monitor = monitor.Initialize("CLU");

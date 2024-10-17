@@ -1,4 +1,4 @@
-namespace SpeechEnabledCoPilot.Endpointer
+namespace SpeechEnabledTvClient .Endpointer
 {
     /// <summary>
     /// Interface for the endpointer handler.
