@@ -1,4 +1,4 @@
-namespace SpeechEnabledCoPilot.Audio
+namespace SpeechEnabledTvClient .Audio
 {
     /// <summary>
     /// Represents an audio output stream that can be started and stopped.
@@ -9,7 +9,8 @@ namespace SpeechEnabledCoPilot.Audio
         /// Starts the audio output stream.
         /// </summary>
         /// <param name="handler">The audio output stream handler.</param>
-        Task Start(IAudioOutputStreamHandler handler);
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        Task Start(IAudioOutputStreamHandler handler, string sessionId = "");
 
         /// <summary>
         /// Stops the audio output stream.

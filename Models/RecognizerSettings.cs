@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SpeechEnabledCoPilot.Models
+namespace SpeechEnabledTvClient .Models
 {
     /// <summary>
     /// Represents the settings for the speech recognizer.
@@ -21,7 +21,9 @@ namespace SpeechEnabledCoPilot.Models
             public const string ProfanityOption = "masked"; // raw or masked
             public const int InitialSilenceTimeoutMs = 10000; // in milliseconds
             public const int EndSilenceTimeoutMs = 1200; // in milliseconds
+            public const int RecognitionTimeoutMs = 20000; // in milliseconds
             public const int StablePartialResultThreshold = 2;
+            public const bool CaptureAudio = false;
         }
 
         public string SubscriptionKey { get; set; } = Defaults.SubscriptionKey;
@@ -32,6 +34,8 @@ namespace SpeechEnabledCoPilot.Models
         public string ProfanityOption { get; set; } = Defaults.ProfanityOption;
         public int InitialSilenceTimeoutMs { get; set; } = Defaults.InitialSilenceTimeoutMs;
         public int EndSilenceTimeoutMs { get; set; } = Defaults.EndSilenceTimeoutMs;
+        public int RecognitionTimeoutMs { get; set; } = Defaults.RecognitionTimeoutMs;
         public int StablePartialResultThreshold { get; set; } = Defaults.StablePartialResultThreshold;
+        public bool CaptureAudio {get; set; } = Defaults.CaptureAudio;
     }
 }

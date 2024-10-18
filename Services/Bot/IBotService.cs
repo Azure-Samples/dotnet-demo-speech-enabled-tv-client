@@ -1,6 +1,6 @@
-﻿using SpeechEnabledCoPilot.Models;
+﻿using SpeechEnabledTvClient .Models;
 
-namespace SpeechEnabledCoPilot.Services.Bot
+namespace SpeechEnabledTvClient .Services.Bot
 {
     public interface IBotService
     {

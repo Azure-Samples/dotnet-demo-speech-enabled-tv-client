@@ -1,27 +1,29 @@
-// TODO: Not working yet
-
+using Microsoft.Extensions.Logging;
 using PortAudioSharp;
-// using PortAudioSharp.Enumerations;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using System;
-using System.IO;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.InteropServices;
 
-namespace SpeechEnabledCoPilot.Audio
+namespace SpeechEnabledTvClient .Audio
 {
     /// <summary>
     /// Supports the default speaker device as an audio output stream.
     /// </summary>
     public class Speaker : IAudioOutputStream
     {
-        IAudioOutputStreamHandler? handler;
-        StreamParameters param;
-        PortAudioSharp.Stream? stream;
-        bool isPlaying = false;
+        private ILogger logger;
+
+        private IAudioOutputStreamHandler? handler;
+        private StreamParameters param;
+        private PortAudioSharp.Stream? stream;
+        private bool isPlaying = false;
         private object syncLock = new object();
-        int playbackFrequency;
-        BlockingCollection<byte[]> dataItems = new BlockingCollection<byte[]>();
+        private int playbackFrequency;
+        private BlockingCollection<byte[]> dataItems = new BlockingCollection<byte[]>();
+
+        private string sessionId = string.Empty;
 
         private readonly Dictionary<string, int> supportedAudioFormats = new Dictionary<string, int>
         {
@@ -36,13 +38,16 @@ namespace SpeechEnabledCoPilot.Audio
         /// <summary>
         /// Initializes a new instance of the <see cref="Speaker"/> class.
         /// </summary>
-        public Speaker(string outputFormat)
+        /// <param name="logger">The logger to use.</param>
+        /// <param name="outputFormat">The output format to use.</param>
+        public Speaker(ILogger logger, string outputFormat)
         {
+            this.logger = logger;
             // Console.WriteLine(PortAudio.VersionInfo.versionText);            
             try
             {
                 if (!supportedAudioFormats.TryGetValue(outputFormat, out playbackFrequency)) {
-                    Console.WriteLine("WARNING {outputFormat} not supported.  Defaulting to 48K linear 16bit PCM");
+                    logger.LogWarning($"WARNING {outputFormat} not supported.  Defaulting to 48K linear 16bit PCM");
                     playbackFrequency = 48000;
                 }
 
@@ -53,7 +58,7 @@ namespace SpeechEnabledCoPilot.Audio
                 int deviceIndex = PortAudio.DefaultOutputDevice;
                 if (deviceIndex == PortAudio.NoDevice)
                 {
-                    Console.WriteLine("No default output device found");
+                    logger.LogError("No default output device found");
                     throw new Exception("No default output device found");
                 }
 
@@ -70,10 +75,14 @@ namespace SpeechEnabledCoPilot.Audio
             }
             catch (System.Exception e)
             {
-                Console.WriteLine($"Error initializing speaker: {e.Message}");
+                logger.LogError($"Error initializing speaker: {e.Message}");
             }
         }
 
+        /// <summary>
+        /// Writes audio data to the audio output stream.
+        /// </summary>
+        /// <param name="audioData">The audio data to write.</param>
         public void onAudioData(byte[] audioData)
         {
             dataItems.Add(audioData);
@@ -110,7 +119,8 @@ namespace SpeechEnabledCoPilot.Audio
                 }
 
                 while ((dataItems.Count != 0) && (i < expected))
-                { // Fill up the buffer with the requested audio
+                {
+                    // Fill up the buffer with the requested audio
                     int needed = expected - i;
 
                     if (dataItems.Count != 0)
@@ -120,14 +130,18 @@ namespace SpeechEnabledCoPilot.Audio
                         i+= audio.Length/sizeof(Int16); 
                     }
                 }
-                if (dataItems.Count == 0) { // If we're done we're done
+
+                // If we're done we're done
+                if (dataItems.Count == 0)
+                {
                     return StreamCallbackResult.Complete;
                 }
+
                 return StreamCallbackResult.Continue;
             }
             catch (System.Exception e)
             {
-                Console.WriteLine($"Error recording audio: {e.Message}");
+                logger.LogError($"[{sessionId}] Error recording audio: {e.Message}");
                 return StreamCallbackResult.Complete;
             }
         }
@@ -136,12 +150,15 @@ namespace SpeechEnabledCoPilot.Audio
         /// Starts the audio output stream.
         /// </summary>
         /// <param name="handler">The audio output stream handler.</param>
-        public async Task Start(IAudioOutputStreamHandler handler)
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        public async Task Start(IAudioOutputStreamHandler handler, string sessionId = "")
         {
             if (handler == null)
             {
                 throw new ArgumentNullException("handler");
             }
+
+            this.sessionId = sessionId;
 
             await Task.Run(() =>
             {
@@ -165,10 +182,11 @@ namespace SpeechEnabledCoPilot.Audio
                         );
 
                         stream.Start();
+                        this.handler.onPlayingStarted(sessionId, "Speaker");
                     }
                     catch (System.Exception e)
                     {
-                        Console.WriteLine($"Error starting speaker: {e.Message}");
+                        logger.LogError($"[{sessionId}] Error starting speaker: {e.Message}");
                     }
                 }
             });
@@ -185,17 +203,26 @@ namespace SpeechEnabledCoPilot.Audio
                 {
                     try
                     {
+                        // Wait for the buffer to drain
+                        while (dataItems.Count > 0)
+                        {
+                            Thread.Sleep(100);
+                        }
                         stream.Stop();
                         stream.Dispose();
                         PortAudio.Terminate();
                     }
                     catch (System.Exception e)
                     {
-                        Console.WriteLine($"Error stopping speaker: {e.Message}");
+                        logger.LogError($"[{sessionId}] Error stopping speaker: {e.Message}");
                     }
                     finally
                     {
                         isPlaying = false;
+                        if (handler != null)
+                        {
+                            handler.onPlayingStopped(sessionId);
+                        }
                     }
                 }
             }

@@ -1,13 +1,13 @@
 # Azure Cognitive Services Demo Client for TV and Devices Solutions
 
-This project provides a demo client that helps illustrate how to build speech-enabled client solutions that leverage Azure Cognitive Services and CoPilot Studio Bots. The client builds on top of existing Microsoft sample code, pulling together details specific to delivering a successful integration for the TV and Devices solution space.
+This project provides a demo client that helps illustrate how to build speech-enabled client solutions that leverage Azure Cognitive Services and Microsoft Copilot Studio Bots. The client builds on top of existing Microsoft sample code, pulling together details specific to delivering a successful integration for the TV and Devices solution space.
 
 The Azure Cognitive Services used by the demo client include:
 
 * Azure Speech-to-Text (STT)
 * Azure Text-to-Speech (TTS)
 * Azure Conversational Language Understanding (CLU)
-* Microsoft CoPilot Studio (MCS)
+* Microsoft Copilot Studio (MCS)
 
 ## Azure Requirements
 
@@ -17,7 +17,7 @@ Before getting started with the demo client, you will need to have an Azure subs
     * [STT](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/get-started-speech-to-text?tabs=macos%2Cterminal&pivots=ai-studio#prerequisites)
     * [TTS](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/get-started-text-to-speech?tabs=macos%2Cterminal&pivots=programming-language-csharp#prerequisites)
 * [CLU](https://learn.microsoft.com/en-us/azure/ai-services/language-service/conversational-language-understanding/quickstart?pivots=language-studio)
-* [CoPilot Studio Bot](https://learn.microsoft.com/en-us/microsoft-copilot-studio/fundamentals-get-started?tabs=web) *optional*
+* [Copilot Studio Bot](https://learn.microsoft.com/en-us/microsoft-copilot-studio/fundamentals-get-started?tabs=web)
 
 ## Client Requirements
 
@@ -29,7 +29,7 @@ Before getting started with the demo client, you will need to have an Azure subs
 
 * Speech Recogntion
 * Conversational Language Understanding
-* Speech Recogntion + Conversational Understanding
+* Speech Recognition + Conversational Understanding
 * Text to Speech
 * Audio Recorder
 * Speech-Enabled Virtual Assistant
@@ -54,10 +54,11 @@ Enter your choice:
 Usage: dotnet run [options]
 
 Options:
-  -h, --help        Show this usage message
-  --ConfigPath      Set path to configuration file. Default: appsettings.yaml
-  --LogLevel        Set log level [DEBUG, INFO, WARNING, ERROR, CRITICAL]. Default: INFO
-  --KeyVaultUri     Set Azure Key Vault URI. Default: 
+  -h, --help                        Show this usage message
+  --ConfigPath                      Set path to configuration file. Default: appsettings.yaml
+  --LogLevel                        Set log level [DEBUG, INFO, WARNING, ERROR, CRITICAL]. Default: INFO
+  --AppInsightsConnectionString     Set Azure App Insights connection string. Default: 
+  --KeyVaultUri                     Set Azure Key Vault URI. Default: 
 
 Recognizer Options:
   --SubscriptionKey                 Azure Speech Service subscription key. Default: YOUR_SUBSCRIPTION_KEY
@@ -90,6 +91,10 @@ Bot Options:
   --BotName                     Azure Bot Name. Default: 
   --BotTokenEndpoint            Azure Bot Token Endpoint. Default: 
   --EndConversationMessage      Message to pass to bot to signal end of conversation. Default: quit
+
+Endpointer Options:
+  --StartOfSpeechWindowInMs     The amount of speech, in ms, needed to trigger start of speech. Default: 220
+  --EndOfSpeechWindowInMs       The amount of trailing silence, in ms, needed to trigger end of speech. Default: 900
 ```
 
 ## Yaml Configuration File
@@ -97,6 +102,7 @@ Bot Options:
 ```yaml
 App:
   KeyVaultUri: https://YOUR_AZURE_KEYVAULT.vault.azure.net
+  AppInsightsConnectionString: YOUR_APP_INSIGHTS_CONNECTION_STRING
   LogLevel: INFO # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 Bot:
@@ -115,7 +121,9 @@ Recognizer:
   ProfanityOption: masked # raw or masked
   InitialSilenceTimeoutMs: 10000 # in milliseconds
   EndSilenceTimeoutMs: 1200 # in milliseconds
+  RecognitionTimeoutMs: 20000 # in milliseconds
   StablePartialResultThreshold: 2
+  CaptureAudio: false # enable to capture audio to file for debug
 
 Synthesizer: 
   SubscriptionKey: YOUR_AZURE_SPEECH_KEY
@@ -130,13 +138,17 @@ Analyzer:
   CluResource: YOUR_CLU_RESOURCE
   CluDeploymentName: YOUR_CLU_DEPLOYMENT_NAME
   CluProjectName: YOUR_CLU_PROJECT_NAME
+
+Endpointer:
+  StartOfSpeechWindowInMs: 220
+  EndOfSpeechWindowInMs: 900
 ```
 
 ## Environment Vars
 
 All command-line args can be passed in as an environment var. 
 
-Environment var naming convention is `AILDEMO_\<cli option name\>`
+Environment var naming convention is `AILDEMO_<cli option name>`
 
 Example: AzureKeyVaultUri --> AILDEMO_AzureKeyVaultUri
 

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SpeechEnabledCoPilot.Models
+namespace SpeechEnabledTvClient .Models
 {
     class BotEndpoint
     {

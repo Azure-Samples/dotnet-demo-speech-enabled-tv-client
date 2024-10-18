@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Azure.Identity;
 
-namespace SpeechEnabledCoPilot.Models
+namespace SpeechEnabledTvClient .Models
 {
     
     /// <summary>
@@ -19,6 +19,7 @@ namespace SpeechEnabledCoPilot.Models
             public const string ConfigPath = "appsettings.yaml";
             public const string LogLevel = "INFO";
             public const string KeyVaultUri = null;
+            public const string AppInsightsConnectionString = null;
         }
 
         private static readonly string ENV_PREFIX = "AILDEMO_";
@@ -29,11 +30,13 @@ namespace SpeechEnabledCoPilot.Models
         public string ConfigPath { get; set; } = Defaults.ConfigPath;
         public string LogLevel { get; set; } = Defaults.LogLevel;
         public string? KeyVaultUri { get; set; } = Defaults.KeyVaultUri;
+        public string? AppInsightsConnectionString { get; set; } = Defaults.AppInsightsConnectionString;
 
         public RecognizerSettings recognizerSettings { get; set; } = new RecognizerSettings();
         public SynthesizerSettings synthesizerSettings { get; set; } = new SynthesizerSettings();
         public AnalyzerSettings analyzerSettings { get; set; } = new AnalyzerSettings();
         public BotSettings botSettings { get; set; } = new BotSettings();
+        public EndpointerSettings endpointerSettings { get; set; } = new EndpointerSettings();
 
         /// <summary>
         /// Loads the application settings from various sources and returns an instance of the <see cref="AppSettings"/> class.
@@ -119,6 +122,13 @@ namespace SpeechEnabledCoPilot.Models
                                     _instance.botSettings = bSettings;
                                 }
                                 break;
+                            case "Endpointer":
+                                EndpointerSettings? eSettings = configuration.GetSection("Endpointer").Get<EndpointerSettings>();
+                                if (eSettings != null)
+                                {
+                                    _instance.endpointerSettings = eSettings;
+                                }
+                                break;
                             default:
                                 /// Handle unrecognized child keys if needed
                                 break;
@@ -128,6 +138,7 @@ namespace SpeechEnabledCoPilot.Models
                     configuration.Bind(_instance.synthesizerSettings);
                     configuration.Bind(_instance.analyzerSettings);
                     configuration.Bind(_instance.botSettings);
+                    configuration.Bind(_instance.endpointerSettings);
                 }
             }
 
@@ -168,6 +179,15 @@ namespace SpeechEnabledCoPilot.Models
                 throw new Exception("AppSettings not loaded. Please call LoadAppSettings first.");
             }
             return _instance.botSettings;
+        }
+
+        public static EndpointerSettings EndpointerSettings()
+        {
+            if (_instance == null)
+            {
+                throw new Exception("AppSettings not loaded. Please call LoadAppSettings first.");
+            }
+            return _instance.endpointerSettings;
         }
 
         /// <summary>

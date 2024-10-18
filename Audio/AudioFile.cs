@@ -3,31 +3,39 @@ using System.Runtime.InteropServices;
 using System;
 using System.IO;
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 
-namespace SpeechEnabledCoPilot.Audio
+namespace SpeechEnabledTvClient .Audio
 {
     /// <summary> 
     /// Represents an audio file that can be written to.
     /// </summary>
     public class AudioFile : IAudioOutputStream
     {
+        private ILogger logger;
+
         private readonly string directory;
         private IAudioOutputStreamHandler? handler;
         private BinaryWriter? binWriter;
-        bool isPlaying = false;
+        private bool isPlaying = false;
         private object syncLock = new object();
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="AudioFile"/> class.
-        /// </summary>
-        public AudioFile() : this(null) { }
+        private string sessionId = string.Empty;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AudioFile"/> class.
         /// </summary>
+        /// <param name="logger">The logger to use.</param>
+        public AudioFile(ILogger logger) : this(logger, null) { }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AudioFile"/> class.
+        /// </summary>
+        /// <param name="logger">The logger to use.</param>
         /// <param name="directory">The directory to save the audio file.</param>
-        public AudioFile(string? directory)
+        public AudioFile(ILogger logger, string? directory)
         {
+            this.logger = logger;
             this.directory = directory ?? "./";
             createDirectory(this.directory);
         }
@@ -60,12 +68,15 @@ namespace SpeechEnabledCoPilot.Audio
         /// Starts writing audio data to the audio file.
         /// </summary>
         /// <param name="handler">The audio output stream handler.</param>
-        public async Task Start(IAudioOutputStreamHandler handler)
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        public async Task Start(IAudioOutputStreamHandler handler, string sessionId = "")
         {
             if (handler == null)
             {
                 throw new ArgumentNullException("handler");
             }
+
+            this.sessionId = sessionId;
 
             await Task.Run(() =>
             {
@@ -86,7 +97,7 @@ namespace SpeechEnabledCoPilot.Audio
                     string filePath = Path.Combine(directory, $"audio-{fileId}.pcm");
                     
                     binWriter = new BinaryWriter(File.Open(filePath, FileMode.Create));
-                    handler.onPlayingStarted(filePath);
+                    handler.onPlayingStarted(sessionId, filePath);
                 }
             });
         }
@@ -108,7 +119,7 @@ namespace SpeechEnabledCoPilot.Audio
                     /// Notify the handler that playing has stopped.
                     if (handler != null)
                     {
-                        handler.onPlayingStopped();
+                        handler.onPlayingStopped(sessionId);
                     }
                 }
             }

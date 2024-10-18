@@ -1,7 +1,8 @@
 using Microsoft.CognitiveServices.Speech;
 using System.Text.Json;
+using SpeechEnabledTvClient .Services.Analyzer;
 
-namespace SpeechEnabledCoPilot.Services.Recognizer
+namespace SpeechEnabledTvClient .Services.Recognizer
 {
     /// <summary>
     /// Represents the response handler for the speech recognizer.
@@ -81,7 +82,7 @@ namespace SpeechEnabledCoPilot.Services.Recognizer
         /// </summary>
         /// <param name="sessionId"></param>
         /// <param name="result"></param>
-        void onAnalysisResult(string sessionId, JsonElement result);
+        void onAnalysisResult(string sessionId, AnalyzerResponse result);
 
         /// <summary>
         /// Called when the recognizer has received a CLU analysis error.

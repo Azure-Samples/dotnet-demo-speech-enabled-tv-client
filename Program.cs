@@ -1,39 +1,120 @@
-﻿using System.Text.Json;
+﻿using Azure.Monitor.OpenTelemetry.Exporter;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using SpeechEnabledCoPilot.Services.Analyzer;
-using SpeechEnabledCoPilot.Services.Recognizer;
-using SpeechEnabledCoPilot.Services.Synthesizer;
-using SpeechEnabledCoPilot.Services.Bot;
-using SpeechEnabledCoPilot.Models;
+using Microsoft.Extensions.Logging.Console;
+using System.Text.Json;
+using SpeechEnabledTvClient .Models;
+using SpeechEnabledTvClient .Monitoring;
+using SpeechEnabledTvClient .Services.Analyzer;
+using SpeechEnabledTvClient .Services.Bot;
+using SpeechEnabledTvClient .Services.Recognizer;
+using SpeechEnabledTvClient .Services.Synthesizer;
 
-namespace SpeechEnabledCoPilot
+namespace SpeechEnabledTvClient 
 {
-    class Program
+    public class Program
     {
+        public readonly ILogger logger;
+        public readonly AppSettings settings;
+
         // Cache history of CLI inputs for quick up/down arrow navigation
         private static List<string> mainMenuHistory = new List<string>();
         private static List<string> analyzerHistory = new List<string>();
         private static List<string> synthesizerHistory = new List<string>();
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Program"/> class.
+        /// </summary>
+        /// <param name="settings">The application settings.</param>
+        public Program(AppSettings settings) {
+            this.settings = settings;
+            
+            try
+            {
+                // Create a logger that includes logging to file, console, and optionally Azure Monitor
+                ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
+                {
+                    builder.AddFile("Logs/myapp-{Date}.txt");
+                    // builder.AddJsonConsole();    // Uncomment to enable JSON console logging
+                    builder.AddSimpleConsole(o => {
+                            o.TimestampFormat = "HH:mm:ss.fff ";
+                            o.IncludeScopes = true;
+                            o.SingleLine = true;
+                        });
+
+                    if (!string.IsNullOrEmpty(settings.AppInsightsConnectionString))
+                    {
+                        builder.AddOpenTelemetry(logging =>
+                        {
+                            logging.AddAzureMonitorLogExporter(options =>
+                            {
+                                options.ConnectionString = settings.AppInsightsConnectionString;
+                            });
+                        });
+                    }
+                });
+
+                logger = loggerFactory.CreateLogger("DTV.Demo");
+            }
+            catch (System.Exception ex)
+            {
+                // If logging fails, log to file and console
+                System.Console.WriteLine($"Error initializing logging: {ex.Message}");
+                
+                ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
+                {
+                    builder.AddFile("Logs/myapp-{Date}.txt");
+                    builder.AddSimpleConsole(o => {
+                            o.TimestampFormat = "HH:mm:ss.fff ";
+                            o.IncludeScopes = true;
+                            o.SingleLine = true;
+                        });
+                });
+                logger = loggerFactory.CreateLogger("DTV.Demo");
+            }
+        }
+
         // ASR + NLU
         public void RecognizeAndAnalyze()
         {
-            Recognizer recognizer = new Recognizer();
-            Analyzer analyzer = new Analyzer();
-            recognizer.Recognize(analyzer, null).Wait();
+            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
+            Analyzer analyzer = new Analyzer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
+
+            string input = string.Empty;
+            while (input != "quit")
+            {
+                Console.Write("Press enter to start recognition (type 'quit' to exit): ");
+                input = ReadLine.Read();
+                if (input == "quit")
+                {
+                    break;
+                }
+                recognizer.Recognize(analyzer, null).Wait();
+            }
         }
 
         // ASR only
         public void Recognize()
         {
-            Recognizer recognizer = new Recognizer();
-            recognizer.Recognize(null, null).Wait();
+            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
+            
+            string input = string.Empty;
+            while (input != "quit")
+            {
+                Console.Write("Press enter to start recognition (type 'quit' to exit): ");
+                input = ReadLine.Read();
+                if (input == "quit")
+                {
+                    break;
+                }
+                recognizer.Recognize(null, null).Wait();
+            }
         }
 
         // NLU only
         public void Analyze()
         {
-            Analyzer analyzer = new Analyzer();
+            Analyzer analyzer = new Analyzer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
 
             string input = string.Empty;
             restoreHistory(analyzerHistory);
@@ -46,27 +127,32 @@ namespace SpeechEnabledCoPilot
                 {
                     break;
                 }
-                JsonElement result = analyzer.Analyze(input);
+                AnalyzerResponse response = analyzer.Analyze(input);
+                if (!response.IsError) {
+                    Interpretation interpretation = response.interpretation;
+                    Prediction prediction = interpretation.result.prediction;
+                    logger.LogInformation($"Analysis result: ");
+                    logger.LogInformation($"\tIntent: {prediction.topIntent} ({prediction.intents[0].confidenceScore})");
 
-                // Extract the prediction from the result and format prediction data
-                JsonElement prediction = result.GetProperty("prediction");
+                    logger.LogInformation($"\tEntities:");
+                    foreach (Entity entity in prediction.entities)
+                    {
+                        logger.LogInformation($"\t\tCategory: {entity.category}");
+                        logger.LogInformation($"\t\t\tText: {entity.text}");
+                        logger.LogInformation($"\t\t\tOffset: {entity.offset}");
+                        logger.LogInformation($"\t\t\tLength: {entity.length}");
+                        logger.LogInformation($"\t\t\tConfidence: {entity.confidenceScore}");
+                    }
 
-                string? topIntent = prediction.GetProperty("topIntent").GetString();
-                JsonElement[] intents = prediction.GetProperty("intents").EnumerateArray().ToArray();
-                var confidenceScore = intents[0].GetProperty("confidenceScore").GetSingle();
-
-                Console.WriteLine($"Analysis result: ");
-                Console.WriteLine($"\tIntent: {topIntent} ({confidenceScore})");
-
-                Console.WriteLine($"\tEntities:");
-                foreach (JsonElement entity in prediction.GetProperty("entities").EnumerateArray())
-                {
-                    Console.WriteLine($"\t\tCategory: {entity.GetProperty("category").GetString()}");
-                    Console.WriteLine($"\t\t\tText: {entity.GetProperty("text").GetString()}");
-                    Console.WriteLine($"\t\t\tOffset: {entity.GetProperty("offset").GetInt32()}");
-                    Console.WriteLine($"\t\t\tLength: {entity.GetProperty("length").GetInt32()}");
-                    Console.WriteLine($"\t\t\tConfidence: {entity.GetProperty("confidenceScore").GetSingle()}");
                 }
+                else if (response.HasErrorResponse) {
+                    ErrorResponse error = response.error;
+                    logger.LogError($"Error: {error.content.error.message}");
+                }
+                else {
+                    logger.LogError("Error: could not parse response");
+                }
+                System.Threading.Thread.Sleep(500); // Provide a slight delay so logs are not interleaved with console output
             }
 
             stashHistory(ref analyzerHistory);
@@ -75,7 +161,7 @@ namespace SpeechEnabledCoPilot
         // TTS
         public void Synthesize()
         {
-            Synthesizer synthesizer = new Synthesizer();
+            Synthesizer synthesizer = new Synthesizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
 
             string input = string.Empty;
             restoreHistory(synthesizerHistory);
@@ -97,7 +183,7 @@ namespace SpeechEnabledCoPilot
         // CoPilot Studio Bot
         public void StartConversation()
         {
-            Recognizer recognizer = new Recognizer();
+            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
             CoPilotClient client = new CoPilotClient();
             client.StartConversation(recognizer).Wait();
         }
@@ -105,7 +191,7 @@ namespace SpeechEnabledCoPilot
         // Audio Recorder
         public void RecordAudio()
         {
-            Recorder recorder = new Recorder();
+            Recorder recorder = new Recorder(logger);
             recorder.RecordAudio();
         }
 
@@ -129,10 +215,11 @@ namespace SpeechEnabledCoPilot
             Console.WriteLine("Usage: dotnet run [options]");
             Console.WriteLine();
             Console.WriteLine("Options:");
-            Console.WriteLine("  -h, --help        Show this usage message");
-            Console.WriteLine($"  --ConfigPath      Set path to configuration file. Default: {AppSettings.Defaults.ConfigPath}");
-            Console.WriteLine($"  --LogLevel        Set log level [DEBUG, INFO, WARNING, ERROR, CRITICAL]. Default: {AppSettings.Defaults.LogLevel}");
-            Console.WriteLine($"  --KeyVaultUri     Set Azure Key Vault URI. Default: {AppSettings.Defaults.KeyVaultUri}");
+            Console.WriteLine("  -h, --help                        Show this usage message");
+            Console.WriteLine($"  --ConfigPath                      Set path to configuration file. Default: {AppSettings.Defaults.ConfigPath}");
+            Console.WriteLine($"  --LogLevel                        Set log level [DEBUG, INFO, WARNING, ERROR, CRITICAL]. Default: {AppSettings.Defaults.LogLevel}");
+            Console.WriteLine($"  --AppInsightsConnectionString     Set Azure App Insights connection string. Default: {AppSettings.Defaults.AppInsightsConnectionString}");
+            Console.WriteLine($"  --KeyVaultUri                     Set Azure Key Vault URI. Default: {AppSettings.Defaults.KeyVaultUri}");
             Console.WriteLine();
             Console.WriteLine("Recognizer Options:");
             Console.WriteLine($"  --SubscriptionKey                 Azure Speech Service subscription key. Default: {RecognizerSettings.Defaults.SubscriptionKey}");
@@ -143,7 +230,9 @@ namespace SpeechEnabledCoPilot
             Console.WriteLine($"  --ProfanityOption                 Profanity filter option [raw, masked]. Default: {RecognizerSettings.Defaults.ProfanityOption}");
             Console.WriteLine($"  --InitialSilenceTimeoutMs         Initial silence timeout in milliseconds. Default: {RecognizerSettings.Defaults.InitialSilenceTimeoutMs}");
             Console.WriteLine($"  --EndSilenceTimeoutMs             End silence timeout in milliseconds. Default: {RecognizerSettings.Defaults.EndSilenceTimeoutMs}");
+            Console.WriteLine($"  --RecognitionTimeoutMs            Recognition timeout in milliseconds. Default: {RecognizerSettings.Defaults.RecognitionTimeoutMs}");
             Console.WriteLine($"  --StablePartialResultThreshold    Stable partial result threshold. Default: {RecognizerSettings.Defaults.StablePartialResultThreshold}");
+            Console.WriteLine($"  --CaptureAudio                    Enable to capture audio to file for debug. Default: {RecognizerSettings.Defaults.CaptureAudio}");
             Console.WriteLine();
             Console.WriteLine("Synthesizer Options:");
             Console.WriteLine($"  --SubscriptionKey                 Azure Speech Service subscription key. Default: {SynthesizerSettings.Defaults.SubscriptionKey}");
@@ -165,6 +254,10 @@ namespace SpeechEnabledCoPilot
             Console.WriteLine($"  --BotName                     Azure Bot Name. Default: {BotSettings.Defaults.BotName}");
             Console.WriteLine($"  --BotTokenEndpoint            Azure Bot Token Endpoint. Default: {BotSettings.Defaults.BotTokenEndpoint}");
             Console.WriteLine($"  --EndConversationMessage      Message to pass to bot to signal end of conversation. Default: {BotSettings.Defaults.EndConversationMessage}");
+            Console.WriteLine();
+            Console.WriteLine("Endpointer Options:");
+            Console.WriteLine($"  --StartOfSpeechWindowInMs     The amount of speech, in ms, needed to trigger start of speech. Default: {EndpointerSettings.Defaults.StartOfSpeechWindowInMs}");
+            Console.WriteLine($"  --EndOfSpeechWindowInMs       The amount of trailing silence, in ms, needed to trigger end of speech. Default: {EndpointerSettings.Defaults.EndOfSpeechWindowInMs}");
         }
 
         // Stash ReadLine history for later restoration
@@ -180,17 +273,46 @@ namespace SpeechEnabledCoPilot
             ReadLine.AddHistory(history.ToArray());
         }
 
+        public static AppSettings loadAppSettings(string[] args) {
+            // Display a spinner while loading app settings
+            var spinner = new[] { '|', '/', '-', '\\' };
+            int spinnerIndex = 0;
+            bool loading = true;
+
+            Task.Run(async () =>
+            {
+                while (loading)
+                {
+                    Console.SetCursorPosition(0, Console.CursorTop);
+                    Console.Write($"Loading settings... {spinner[spinnerIndex]}");
+                    spinnerIndex = (spinnerIndex + 1) % spinner.Length;
+                    await Task.Delay(100);
+                }
+                Console.SetCursorPosition(0, Console.CursorTop);
+                Console.Write(new string(' ', Console.WindowWidth)); // Clear the spinner line
+                Console.SetCursorPosition(0, Console.CursorTop);
+            });
+
+            // Load app settings
+            AppSettings appSettings = AppSettings.LoadAppSettings(args);
+            loading = false;
+            return appSettings;
+        }
+
         // Main entry point
         static void Main(string[] args)
         {
+            Console.WriteLine($"Client version: {Version.version}");
+            Console.WriteLine("Welcome to the Speech-Enabled TV Client!");
+
             if (args.Contains("-h") || args.Contains("--help"))
             {
                 showUsage();
                 return;
             }
 
-            Program app = new Program();
-            AppSettings appSettings = AppSettings.LoadAppSettings(args);
+            AppSettings appSettings = loadAppSettings(args);
+            Program app = new Program(appSettings);
 
             showMenu();
 
@@ -208,7 +330,10 @@ namespace SpeechEnabledCoPilot
                 {
                     case "1":
                         try { app.RecognizeAndAnalyze(); }
-                        catch (System.Exception e) { Console.WriteLine($"Error: {e.Message}"); }
+                        catch (System.Exception e) {
+                            Console.WriteLine($"Error: {e.Message}");
+                            app.logger.LogError(e.Message);
+                        }
                         break;
                     case "2":
                         try { app.Recognize(); }

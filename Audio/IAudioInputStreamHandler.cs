@@ -1,4 +1,4 @@
-namespace SpeechEnabledCoPilot.Audio
+namespace SpeechEnabledTvClient .Audio
 {
 
     /// <summary>
@@ -6,11 +6,11 @@ namespace SpeechEnabledCoPilot.Audio
     /// </summary>
     public interface IAudioInputStreamHandler
     {
-
         /// <summary>
         /// Receives audio data.
         /// </summary>
         /// <param name="data">The audio data.</param>
-        void onAudioData(byte[] data);
+        /// <param name="sessionId">The session ID associated with this audio data.</param>
+        void onAudioData(string sessionId, byte[] data);
     }
 }

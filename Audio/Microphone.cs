@@ -1,10 +1,11 @@
+using Microsoft.Extensions.Logging;
 using PortAudioSharp;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System;
 using System.IO;
 
-namespace SpeechEnabledCoPilot.Audio
+namespace SpeechEnabledTvClient .Audio
 {
 
     /// <summary>
@@ -12,18 +13,23 @@ namespace SpeechEnabledCoPilot.Audio
     /// </summary>
     public class Microphone : IAudioInputStream
     {
+        private ILogger logger;
 
-        IAudioInputStreamHandler? handler;
-        StreamParameters param;
-        PortAudioSharp.Stream? stream;
-        bool isRecording = false;
+        private IAudioInputStreamHandler? handler;
+        private StreamParameters param;
+        private PortAudioSharp.Stream? stream;
+        private bool isRecording = false;
         private object syncLock = new object();
+
+        private string sessionId = string.Empty;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Microphone"/> class.
         /// </summary>
-        public Microphone()
+        public Microphone(ILogger logger)
         {
+            this.logger = logger;
+
             try
             {
                 /// Initialize port audio
@@ -33,7 +39,7 @@ namespace SpeechEnabledCoPilot.Audio
                 int deviceIndex = PortAudio.DefaultInputDevice;
                 if (deviceIndex == PortAudio.NoDevice)
                 {
-                    Console.WriteLine("No default input device found");
+                    logger.LogError("No default input device found");
                     throw new Exception("No default input device found");
                 }
 
@@ -47,10 +53,11 @@ namespace SpeechEnabledCoPilot.Audio
                 param.sampleFormat = SampleFormat.Float32;
                 param.suggestedLatency = info.defaultLowInputLatency;
                 param.hostApiSpecificStreamInfo = IntPtr.Zero;
+
             }
             catch (System.Exception e)
             {
-                Console.WriteLine($"Error initializing microphone: {e.Message}");
+                logger.LogError($"Error initializing microphone: {e.Message}");
             }
         }
 
@@ -90,13 +97,13 @@ namespace SpeechEnabledCoPilot.Audio
                 /// Pass the audio data to the audio input stream handler
                 if (handler != null)
                 {
-                    handler.onAudioData(audioData);
+                    handler.onAudioData(sessionId, audioData);
                 }
                 return StreamCallbackResult.Continue;
             }
             catch (System.Exception e)
             {
-                Console.WriteLine($"Error recording audio: {e.Message}");
+                logger.LogError($"Error recording audio: {e.Message}");
                 return StreamCallbackResult.Continue;
             }
         }
@@ -105,12 +112,15 @@ namespace SpeechEnabledCoPilot.Audio
         /// Starts the audio input stream.
         /// </summary>
         /// <param name="handler">The audio input stream handler.</param>
-        public async void Start(IAudioInputStreamHandler handler)
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        public async void Start(IAudioInputStreamHandler handler, string sessionId = "")
         {
             if (handler == null)
             {
                 throw new ArgumentNullException("handler");
             }
+
+            this.sessionId = sessionId;
 
             await Task.Run(() =>
             {
@@ -126,8 +136,9 @@ namespace SpeechEnabledCoPilot.Audio
                     try
                     {
                         /// Start the audio input stream
-                        stream = new PortAudioSharp.Stream(inParams: param, outParams: null, sampleRate: 16000,
-                            framesPerBuffer: 2560,
+                        stream = new PortAudioSharp.Stream(inParams: param, outParams: null, 
+                            sampleRate: 16000,
+                            framesPerBuffer: 320, // 20ms
                             streamFlags: StreamFlags.ClipOff,
                             callback: onRecord,
                             userData: IntPtr.Zero
@@ -136,7 +147,7 @@ namespace SpeechEnabledCoPilot.Audio
                     }
                     catch (System.Exception e)
                     {
-                        Console.WriteLine($"Error starting microphone: {e.Message}");
+                        logger.LogError($"[{sessionId}] Error starting microphone: {e.Message}");
                     }
                 }
             });
@@ -159,7 +170,7 @@ namespace SpeechEnabledCoPilot.Audio
                     }
                     catch (System.Exception e)
                     {
-                        Console.WriteLine($"Error stopping microphone: {e.Message}");
+                        logger.LogError($"[{sessionId}] Error stopping microphone: {e.Message}");
                     }
                     finally
                     {

@@ -1,5 +1,6 @@
 App:
   KeyVaultUri: https://YOUR_AZURE_KEYVAULT.vault.azure.net
+  AppInsightsConnectionString: YOUR_APP_INSIGHTS_CONNECTION_STRING
   LogLevel: INFO # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 Bot:
@@ -18,7 +19,9 @@ Recognizer:
   ProfanityOption: masked # raw or masked
   InitialSilenceTimeoutMs: 10000 # in milliseconds
   EndSilenceTimeoutMs: 1200 # in milliseconds
+  RecognitionTimeoutMs: 20000 # in milliseconds
   StablePartialResultThreshold: 2
+  CaptureAudio: false # enable to capture audio to file for debug
 
 Synthesizer: 
   SubscriptionKey: YOUR_AZURE_SPEECH_KEY
@@ -33,3 +36,7 @@ Analyzer:
   CluResource: YOUR_CLU_RESOURCE
   CluDeploymentName: YOUR_CLU_DEPLOYMENT_NAME
   CluProjectName: YOUR_CLU_PROJECT_NAME
+
+Endpointer:
+  StartOfSpeechWindowInMs: 220
+  EndOfSpeechWindowInMs: 900
