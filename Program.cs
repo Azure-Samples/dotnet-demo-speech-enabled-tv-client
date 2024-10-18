@@ -273,18 +273,18 @@ namespace SpeechEnabledTvClient
             ReadLine.AddHistory(history.ToArray());
         }
 
-        public static AppSettings loadAppSettings(string[] args) {
-            // Display a spinner while loading app settings
+        public static async Task<T> Animate<T>(string loadingMessage, Func<Task<T>> task)
+        {
             var spinner = new[] { '|', '/', '-', '\\' };
             int spinnerIndex = 0;
             bool loading = true;
 
-            Task.Run(async () =>
+            var loadingTask = Task.Run(async () =>
             {
                 while (loading)
                 {
                     Console.SetCursorPosition(0, Console.CursorTop);
-                    Console.Write($"Loading settings... {spinner[spinnerIndex]}");
+                    Console.Write($"{loadingMessage} {spinner[spinnerIndex]}");
                     spinnerIndex = (spinnerIndex + 1) % spinner.Length;
                     await Task.Delay(100);
                 }
@@ -293,10 +293,22 @@ namespace SpeechEnabledTvClient
                 Console.SetCursorPosition(0, Console.CursorTop);
             });
 
-            // Load app settings
-            AppSettings appSettings = AppSettings.LoadAppSettings(args);
+            // Execute the provided task
+            T result = await task();
             loading = false;
-            return appSettings;
+
+            await loadingTask; // Ensure the loading task completes
+
+            return result;
+        }
+
+        public static AppSettings LoadAppSettings(string[] args)
+        {
+            return Animate("Loading settings...", async () =>
+            {
+                // Simulate loading app settings (replace this with your actual logic)
+                return await Task.Run(() => AppSettings.LoadAppSettings(args));
+            }).Result; // Blocks until the task completes and retrieves the result
         }
 
         // Main entry point
@@ -311,7 +323,7 @@ namespace SpeechEnabledTvClient
                 return;
             }
 
-            AppSettings appSettings = loadAppSettings(args);
+            AppSettings appSettings = LoadAppSettings(args);
             Program app = new Program(appSettings);
 
             showMenu();

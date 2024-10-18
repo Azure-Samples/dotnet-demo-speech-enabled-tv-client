@@ -14,7 +14,7 @@ namespace SpeechEnabledTvClient .Services.Bot
         private static IBotService? _botService;
         private static BotSettings? _appSettings;
         private string _botId;
-        private string _botName;
+        private static string _botName;
         private string _botTenantId;
         private string _botTokenEndpoint;
         private static string? _endConversationMessage;
@@ -67,6 +67,15 @@ namespace SpeechEnabledTvClient .Services.Bot
             Console.WriteLine($"To end the conversation, simply say '{_appSettings.EndConversationMessage}'");
         }
 
+        public static List<Activity> WaitForResponse(DirectLineClient directLineClient, string conversationId)
+        {
+            return Program.Animate("Thinking...", async () =>
+            {
+                // Simulate loading app settings (replace this with your actual logic)
+                return await Task.Run(() => GetBotResponseActivitiesAsync(directLineClient, conversationId));
+            }).Result; // Blocks until the task completes and retrieves the result
+        }
+
 
         public async Task StartConversation(SpeechEnabledTvClient .Services.Recognizer.Recognizer? recognizer)
         {
@@ -113,19 +122,18 @@ namespace SpeechEnabledTvClient .Services.Bot
                     });
 
                     Console.WriteLine($"{_botName}:");
-                    // Thread.Sleep(3000);
 
-                    // Get bot response using directlinClient
+                    // Get bot response using directlineClient
                     int count = 0;
+                    _userInput = "";
                     List<Activity> responses = new List<Activity>();
                     while (count <= 0) {
-                        responses = await GetBotResponseActivitiesAsync(directLineClient, conversationId);
+                        responses = WaitForResponse(directLineClient, conversationId);
                         count = responses.Count;
                     }
-                    Console.WriteLine($"Number of responses: " + responses.Count);
                     BotReply(responses);
                     Console.WriteLine("Done replying.");
-                    Thread.Sleep(5000);
+                    Thread.Sleep(500);
                 }
             }
         }
@@ -138,7 +146,7 @@ namespace SpeechEnabledTvClient .Services.Bot
         /// <param name="directLineClient">directline client</param>
         /// <param name="conversationId">current conversation ID</param>
         /// <param name="botName">name of bot to connect to</param>// <summary>        
-        private async Task<List<Activity>> GetBotResponseActivitiesAsync(DirectLineClient directLineClient, string conversationId)
+        private static async Task<List<Activity>> GetBotResponseActivitiesAsync(DirectLineClient directLineClient, string conversationId)
         {
             ActivitySet? response = null;
             List<Activity>? result = new List<Activity>();
