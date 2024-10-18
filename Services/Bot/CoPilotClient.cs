@@ -67,7 +67,6 @@ namespace SpeechEnabledTvClient .Services.Bot
             _botTenantId = _appSettings.BotTenantId;
             _botTokenEndpoint = _appSettings.BotTokenEndpoint;
 
-            // StartConversation().Wait();
             Console.WriteLine($"To end the conversation, simply say '{_appSettings.EndConversationMessage}'");
         }
 
@@ -111,6 +110,14 @@ namespace SpeechEnabledTvClient .Services.Bot
                     Console.WriteLine($"Input Message = {inputMessage}");
                     if (string.Equals(inputMessage.TrimEnd('.'), _endConversationMessage, StringComparison.OrdinalIgnoreCase))
                     {
+                        directLineClient.Conversations.PostActivityAsync(conversationId, new Activity()
+                        {
+                            Type = ActivityTypes.EndOfConversation,
+                            From = new ChannelAccount { Id = "userId", Name = "userName" },
+                            Locale = "en-Us",
+                        }).Wait();
+                        directLineClient.Dispose();
+                        _watermark = null;
                         _logger.LogInformation($"[{conversation.ConversationId}] Client Copilot Conversation Ended");
                         Console.WriteLine("Goodbye!");
                         break;
