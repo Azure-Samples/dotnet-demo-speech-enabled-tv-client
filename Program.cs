@@ -184,7 +184,7 @@ namespace SpeechEnabledTvClient
         public void StartConversation()
         {
             Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
-            CoPilotClient client = new CoPilotClient();
+            CoPilotClient client = new CoPilotClient(logger);
             client.StartConversation(recognizer).Wait();
         }
 

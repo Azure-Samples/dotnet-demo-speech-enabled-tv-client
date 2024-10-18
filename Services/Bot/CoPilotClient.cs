@@ -2,14 +2,18 @@ using SpeechEnabledTvClient .Models;
 using Microsoft.Bot.Connector.DirectLine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.CognitiveServices.Speech;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 using System.Text.Json;
 using SpeechEnabledTvClient .Services.Recognizer;
 using SpeechEnabledTvClient .Services.Analyzer;
+using SpeechEnabledTvClient .Monitoring;
 
 namespace SpeechEnabledTvClient .Services.Bot
 {
     public class CoPilotClient : IRecognizerResponseHandler
     {
+        private readonly ILogger _logger;
         private static string? _watermark = null;
         private static IBotService? _botService;
         private static BotSettings? _appSettings;
@@ -22,14 +26,14 @@ namespace SpeechEnabledTvClient .Services.Bot
         private string? _userInput = "";
 
 
-        public CoPilotClient()
+        public CoPilotClient(ILogger logger)
         {
             // var configuration = new ConfigurationBuilder()
             //                    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
             //                    .AddYamlFile("appsettings.yaml", optional: true)
             //                    .AddEnvironmentVariables()
             //                    .Build();
-
+            _logger = logger;
             _appSettings = AppSettings.BotSettings();
             _endConversationMessage = _appSettings.EndConversationMessage ?? "quit";
             
@@ -89,13 +93,13 @@ namespace SpeechEnabledTvClient .Services.Bot
                 throw new Exception("BotService or AppSettings is null.");
             }
 
-
             var directLineToken = await _botService.GetTokenAsync(_botTokenEndpoint);
             using (var directLineClient = new DirectLineClient(directLineToken.Token))
             {
                 var conversation = await directLineClient.Conversations.StartConversationAsync();
                 var conversationId = conversation.ConversationId;
                 string inputMessage;
+                _logger.LogInformation($"[{conversation.ConversationId}] Client Start Copilot Conversation");
 
                 while (true)
                 {
@@ -107,6 +111,7 @@ namespace SpeechEnabledTvClient .Services.Bot
                     Console.WriteLine($"Input Message = {inputMessage}");
                     if (string.Equals(inputMessage.TrimEnd('.'), _endConversationMessage, StringComparison.OrdinalIgnoreCase))
                     {
+                        _logger.LogInformation($"[{conversation.ConversationId}] Client Copilot Conversation Ended");
                         Console.WriteLine("Goodbye!");
                         break;
                     }
