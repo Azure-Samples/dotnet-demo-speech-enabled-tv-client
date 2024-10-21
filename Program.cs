@@ -3,12 +3,12 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using System.Text.Json;
-using SpeechEnabledTvClient .Models;
-using SpeechEnabledTvClient .Monitoring;
-using SpeechEnabledTvClient .Services.Analyzer;
-using SpeechEnabledTvClient .Services.Bot;
-using SpeechEnabledTvClient .Services.Recognizer;
-using SpeechEnabledTvClient .Services.Synthesizer;
+using SpeechEnabledTvClient.Models;
+using SpeechEnabledTvClient.Monitoring;
+using SpeechEnabledTvClient.Services.Analyzer;
+using SpeechEnabledTvClient.Services.Bot;
+using SpeechEnabledTvClient.Services.Recognizer;
+using SpeechEnabledTvClient.Services.Synthesizer;
 
 namespace SpeechEnabledTvClient 
 {
@@ -77,8 +77,8 @@ namespace SpeechEnabledTvClient
         // ASR + NLU
         public void RecognizeAndAnalyze()
         {
-            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
-            Analyzer analyzer = new Analyzer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
+            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient.Monitoring.Monitor(settings));
+            Analyzer analyzer = new Analyzer(logger, new SpeechEnabledTvClient.Monitoring.Monitor(settings));
 
             string input = string.Empty;
             while (input != "quit")
@@ -96,7 +96,7 @@ namespace SpeechEnabledTvClient
         // ASR only
         public void Recognize()
         {
-            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
+            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient.Monitoring.Monitor(settings));
             
             string input = string.Empty;
             while (input != "quit")
@@ -114,7 +114,7 @@ namespace SpeechEnabledTvClient
         // NLU only
         public void Analyze()
         {
-            Analyzer analyzer = new Analyzer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
+            Analyzer analyzer = new Analyzer(logger, new SpeechEnabledTvClient.Monitoring.Monitor(settings));
 
             string input = string.Empty;
             restoreHistory(analyzerHistory);
@@ -161,7 +161,7 @@ namespace SpeechEnabledTvClient
         // TTS
         public void Synthesize()
         {
-            Synthesizer synthesizer = new Synthesizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
+            Synthesizer synthesizer = new Synthesizer(logger, new SpeechEnabledTvClient.Monitoring.Monitor(settings));
 
             string input = string.Empty;
             restoreHistory(synthesizerHistory);
@@ -183,7 +183,7 @@ namespace SpeechEnabledTvClient
         // CoPilot Studio Bot
         public void StartConversation()
         {
-            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
+            Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient.Monitoring.Monitor(settings));
             CopilotClient client = new CopilotClient(logger);
             client.StartConversation(recognizer).Wait();
         }
@@ -273,6 +273,7 @@ namespace SpeechEnabledTvClient
             ReadLine.AddHistory(history.ToArray());
         }
 
+        // Animate a loading spinner while executing a task
         public static async Task<T> Animate<T>(string loadingMessage, Func<Task<T>> task)
         {
             var spinner = new[] { '|', '/', '-', '\\' };
@@ -302,8 +303,10 @@ namespace SpeechEnabledTvClient
             return result;
         }
 
+        // Load application settings
         public static AppSettings LoadAppSettings(string[] args)
         {
+            // Use a loading spinner while loading settings. Reading from Key Vault can take a few seconds.
             return Animate("Loading settings...", async () =>
             {
                 return await Task.Run(() => AppSettings.LoadAppSettings(args));
