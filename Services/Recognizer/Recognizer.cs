@@ -8,11 +8,11 @@ using Azure.Core;
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
 using Microsoft.Extensions.Logging;
-using SpeechEnabledTvClient .Audio;
-using SpeechEnabledTvClient .Endpointer;
-using SpeechEnabledTvClient .Models;
-using SpeechEnabledTvClient .Monitoring;
-using SpeechEnabledTvClient .Services.Analyzer;
+using SpeechEnabledTvClient.Audio;
+using SpeechEnabledTvClient.Endpointer;
+using SpeechEnabledTvClient.Models;
+using SpeechEnabledTvClient.Monitoring;
+using SpeechEnabledTvClient.Services.Analyzer;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -23,7 +23,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 
-namespace SpeechEnabledTvClient .Services.Recognizer
+namespace SpeechEnabledTvClient.Services.Recognizer
 {
     /// <summary>
     /// Represents the speech recognizer.
@@ -32,7 +32,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
     {
         // properties for logging and monitoring
         private readonly ILogger logger;
-        private readonly SpeechEnabledTvClient .Monitoring.Monitor monitor;
+        private readonly SpeechEnabledTvClient.Monitoring.Monitor monitor;
         private Activity? activity;
         private long _audioDurationInMs = 0;
         private DateTime eosTime = DateTime.Now;
@@ -52,6 +52,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         private SpeechRecognizer _recognizer;
         private TimerService recognizerTimer; // Timer to force recognition to stop after a certain time
         TaskCompletionSource<bool> recognitionTaskCompletionSource = new TaskCompletionSource<bool>(); // Task completion source to signal recognition completion
+        IRecognizerResponseHandler? _handler;
 
         // Audio input/output streams
         private IAudioInputStream? audioStream;             // audio input stream (e.g. microphone)
@@ -76,7 +77,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         /// </summary>
         /// <param name="logger">The logger to use.</param>
         /// <param name="monitor">The monitor to use.</param>
-        public Recognizer(ILogger logger, SpeechEnabledTvClient .Monitoring.Monitor monitor)
+        public Recognizer(ILogger logger, SpeechEnabledTvClient.Monitoring.Monitor monitor)
         {
             // Initialize the logger and monitor
             this.logger = logger;
@@ -148,6 +149,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
             {
                 handler = this; // this class implements the handler interface to simply log the events
             }
+            _handler = handler;
 
             using (activity = monitor.activitySource.StartActivity("Recognize"))
             {
@@ -558,8 +560,6 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         /// <param name="e">The event arguments.</param>
         public void OnRecognitionTimerExpired(object? sender, TimerServiceEventArgs e)
         {
-            logger.LogWarning($"[{e.SessionId}] Recognition timer elapsed: {e.SignalTime:G}");
-
             // Log the expiration event
             activity?.AddEvent(new ActivityEvent("RecognitionTimerExpired", 
                                 DateTimeOffset.UtcNow, 
@@ -572,6 +572,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
 
             eosTime = DateTime.Now;
             UpdateRecognitionTaskCompletionSource(); // Signal recognition completion
+            _handler?.onRecognitionTimerExpired(e.SessionId, e.SignalTime);
         }
 
         /// Audio stream output handler methods
@@ -641,8 +642,6 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         /// </summary>
         /// <param name="position">The position in the audio stream.</param>
         public void OnStartOfSpeech(int position) {
-            logger.LogInformation($"[{Identifier(monitor.SessionId)}] Client start of speech detected at {position}ms");
-
             // Log the client-side speech start detected event
             activity?.AddEvent(new ActivityEvent("ClientSideOnStartOfSpeechDetected", 
                                 DateTimeOffset.UtcNow, 
@@ -655,6 +654,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
 
             sosPosition = position;
             sosDetected = true;
+            _handler?.onClientSideSpeechStartDetected(monitor.SessionId, (long)position);
         }
 
         /// <summary>
@@ -662,8 +662,6 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         /// </summary>
         /// <param name="position">The position in the audio stream.</param>
         public void OnEndOfSpeech(int position) {
-            logger.LogInformation($"[{Identifier(monitor.SessionId)}] Client end of speech detected at {position}ms");
-
             // Log the client-side speech end detected event
             activity?.AddEvent(new ActivityEvent("ClientSideOnEndOfSpeechDetected", 
                                 DateTimeOffset.UtcNow, 
@@ -680,6 +678,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
 
             // Signal that recognition is ready for completion
             UpdateRecognitionTaskCompletionSource();
+            _handler?.onClientSideSpeechEndDetected(monitor.SessionId, (long)position);
         }
 
         /// <summary>
@@ -757,6 +756,18 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         public void onRecognitionError(string sessionId, string error, string details)
         {
             logger.LogError($"[{Identifier(sessionId)}] Recognition error: {error} - {details}");
+        }
+
+        public void onClientSideSpeechStartDetected(string sessionId, long offset) {
+            logger.LogInformation($"[{Identifier(sessionId)}] Client start of speech detected at {offset}ms");
+        }
+
+        public void onClientSideSpeechEndDetected(string sessionId, long offset) {
+            logger.LogInformation($"[{Identifier(sessionId)}] Client end of speech detected at {offset}ms");
+        }
+
+        public void onRecognitionTimerExpired(string sessionId, DateTime signalTime) {
+            logger.LogWarning($"[{sessionId}] Recognition timer elapsed: {signalTime:G}");
         }
 
         public void onAnalysisResult(string sessionId, AnalyzerResponse response)

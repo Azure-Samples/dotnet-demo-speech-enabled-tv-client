@@ -1,15 +1,15 @@
-using SpeechEnabledTvClient .Models;
+using SpeechEnabledTvClient.Models;
 using Microsoft.Bot.Connector.DirectLine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using System.Text.Json;
-using SpeechEnabledTvClient .Services.Recognizer;
-using SpeechEnabledTvClient .Services.Analyzer;
-using SpeechEnabledTvClient .Monitoring;
+using SpeechEnabledTvClient.Services.Recognizer;
+using SpeechEnabledTvClient.Services.Analyzer;
+using SpeechEnabledTvClient.Monitoring;
 
-namespace SpeechEnabledTvClient .Services.Bot
+namespace SpeechEnabledTvClient.Services.Bot
 {
     public class CopilotClient : IRecognizerResponseHandler
     {
@@ -24,6 +24,7 @@ namespace SpeechEnabledTvClient .Services.Bot
         private static string? _endConversationMessage;
         private static string _userDisplayName = "You";
         private string? _userInput = "";
+        private static bool _isListening = false;
 
 
         public CopilotClient(ILogger logger)
@@ -33,9 +34,9 @@ namespace SpeechEnabledTvClient .Services.Bot
             _endConversationMessage = _appSettings.EndConversationMessage ?? "quit";
             
             var serviceProvider = new ServiceCollection()
-                                .AddLogging()
-                                .AddSingleton<IBotService, BotService>()                
-                                .BuildServiceProvider();
+                               .AddLogging()
+                               .AddSingleton<IBotService, BotService>()                
+                               .BuildServiceProvider();
             if ( serviceProvider == null ) {
                 throw new Exception("Service provider is null.");
             }
@@ -62,19 +63,27 @@ namespace SpeechEnabledTvClient .Services.Bot
             _botTenantId = _appSettings.BotTenantId;
             _botTokenEndpoint = _appSettings.BotTokenEndpoint;
 
-            Console.WriteLine($"To end the conversation, simply say '{_appSettings.EndConversationMessage}'");
+            CopilotSays($"To end the conversation, simply say '{_appSettings.EndConversationMessage}'");
+        }
+
+        private void CopilotSays(string message) {
+            Console.WriteLine($"{_botName}: {message}");
+        }
+
+        private void UserSays(string message) {
+            Console.WriteLine($"{_userDisplayName}: {message}");
         }
 
         public static List<Activity> WaitForResponse(DirectLineClient directLineClient, string conversationId)
         {
-            return Program.Animate("Thinking...", async () =>
+            return Program.Animate($"{_botName}: Thinking...", async () =>
             {
                 return await Task.Run(() => GetBotResponseActivitiesAsync(directLineClient, conversationId));
             }).Result; // Blocks until the task completes and retrieves the result
         }
 
 
-        public async Task StartConversation(SpeechEnabledTvClient .Services.Recognizer.Recognizer? recognizer)
+        public async Task StartConversation(SpeechEnabledTvClient.Services.Recognizer.Recognizer? recognizer)
         {
             if (_botService == null)
             {
@@ -97,11 +106,12 @@ namespace SpeechEnabledTvClient .Services.Bot
                 while (true)
                 {
                     if (recognizer != null) {
+                        _isListening = false;
                         inputMessage = GetUserInput(recognizer);
                     } else {
                         inputMessage = GetUserInput();
                     }
-                    Console.WriteLine($"Input Message = {inputMessage}");
+                    CopilotSays($"Processing input: {inputMessage}");
                     if (string.Equals(inputMessage.TrimEnd('.'), _endConversationMessage, StringComparison.OrdinalIgnoreCase))
                     {
                         directLineClient.Conversations.PostActivityAsync(conversationId, new Activity()
@@ -113,7 +123,7 @@ namespace SpeechEnabledTvClient .Services.Bot
                         directLineClient.Dispose();
                         _watermark = null;
                         _logger.LogInformation($"[{conversation.ConversationId}] Client Copilot Conversation Ended");
-                        Console.WriteLine("Goodbye!");
+                        CopilotSays("Goodbye!");
                         break;
                     }
 
@@ -127,7 +137,7 @@ namespace SpeechEnabledTvClient .Services.Bot
                         Locale = "en-Us",
                     });
 
-                    Console.WriteLine($"{_botName}:");
+                    CopilotSays($"{_botName}: Here's what I found...");
 
                     // Get bot response using directlineClient
                     int count = 0;
@@ -138,7 +148,7 @@ namespace SpeechEnabledTvClient .Services.Bot
                         count = responses.Count;
                     }
                     BotReply(responses);
-                    Console.WriteLine("Done replying.");
+                    CopilotSays("Ready for your next request!");
                     Thread.Sleep(500);
                 }
             }
@@ -196,14 +206,14 @@ namespace SpeechEnabledTvClient .Services.Bot
             return (_userInput == null) ? "" : _userInput;
         }
 
-        private string GetUserInput(SpeechEnabledTvClient .Services.Recognizer.Recognizer recognizer) {
+        private string GetUserInput(SpeechEnabledTvClient.Services.Recognizer.Recognizer recognizer) {
             // string[] phrases = new string[] { "SPIDER-MAN" };
             string[]? phrases = null;
 
             while (string.IsNullOrEmpty(_userInput)) {
                 recognizer.Recognize(this, phrases).Wait();
             }
-                return _userInput;
+            return _userInput;
         }
 
 
@@ -236,24 +246,41 @@ namespace SpeechEnabledTvClient .Services.Bot
 
         public void onRecognitionStarted(string sessionId)
         {
-            // Console.WriteLine($"Recognition started: {sessionId}");
-            Console.WriteLine("Listening...");
-            _userInput = "";
+            if (!_isListening) {
+                _isListening = true;
+                CopilotSays("I'm listening...");
+                _userInput = "";
+            }
         }
 
         public void onRecognitionComplete(string sessionId)
         {
-            // Console.WriteLine($"Recognition complete: {sessionId}");
+            // Not implemented
+            Console.WriteLine("Recognition complete");
         }
 
         public void onSpeechStartDetected(string sessionId, long offset) {
-            // Console.WriteLine($"Speech start detected: {sessionId} at {offset}");
-            Console.WriteLine("Processing audio...");
+            CopilotSays("Processing audio...");
+        }
+
+        public void onClientSideSpeechStartDetected(string sessionId, long offset) {
+            // Not implemented
+            Console.WriteLine("Client side speech start detected");
+        }
+
+        public void onClientSideSpeechEndDetected(string sessionId, long offset) {
+            // Not implemented
+            Console.WriteLine("Client side speech end detected");
+        }
+
+        public void onRecognitionTimerExpired(string sessionId, DateTime signalTime) {
+            // Not implemented
+            Console.WriteLine($"Recognition timer expired: {signalTime:G}");
         }
 
         public void onSpeechEndDetected(string sessionId, long offset) {
-            // Console.WriteLine($"Speech end detected: {sessionId} at {offset}");
-            Console.WriteLine("done.");
+            // Not implemented
+            Console.WriteLine("Speech end detected");
         }
 
         public void onRecognitionResult(string sessionId, long offset, SpeechRecognitionResult result) {
@@ -261,29 +288,30 @@ namespace SpeechEnabledTvClient .Services.Bot
         }
 
         public void onFinalRecognitionResult(string sessionId, long offset, System.Collections.Generic.IEnumerable<DetailedSpeechRecognitionResult> results) {
-            // Console.WriteLine("Received final recognition result");
             _userInput = results.First().Text;
-            Console.WriteLine($"{_userDisplayName}: {_userInput}");
+            if (!string.IsNullOrEmpty(_userInput)) {
+                UserSays(_userInput);
+            }
         }
 
         public void onRecognitionNoMatch(string sessionId, long offset, string reason, SpeechRecognitionResult result) {
-            Console.WriteLine($"Recognition no match: {sessionId} at {offset} with reason: {reason}");
+            CopilotSays("I didn't catch that.  Can you repeat?");
         }
 
         public void onRecognitionCancelled(string sessionId, long offset, CancellationDetails details) {
-            Console.WriteLine($"Recognition cancelled: {sessionId} at {offset} with details: {details.Reason.ToString()}");
+            CopilotSays($"I got the following error while processing your request: {details.Reason.ToString()}");
         }
         
         public void onRecognitionError(string sessionId, string error, string details) {
-            Console.WriteLine($"Recognition error: {sessionId} with error: {error} and details: {details}");
+            CopilotSays($"I got the following error while processing your request: {error} with details: {details}");
         }
 
         public void onAnalysisResult(string sessionId, AnalyzerResponse result) {
-            Console.WriteLine($"Analysis result: {JsonSerializer.Serialize(result)}");
+            // Not implemented
         }
 
         public void onAnalysisError(string sessionId, string error, string details) {
-            Console.WriteLine($"Analysis error: {error} with details: {details}");
+            // Not implemented
         }
     }
 }

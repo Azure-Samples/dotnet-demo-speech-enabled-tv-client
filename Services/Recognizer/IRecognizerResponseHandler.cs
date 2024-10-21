@@ -1,6 +1,6 @@
 using Microsoft.CognitiveServices.Speech;
-using System.Text.Json;
 using SpeechEnabledTvClient.Services.Analyzer;
+using System.Text.Json;
 
 namespace SpeechEnabledTvClient.Services.Recognizer
 {
@@ -28,6 +28,10 @@ namespace SpeechEnabledTvClient.Services.Recognizer
         /// <param name="sessionId"></param>
         /// <param name="offset"></param>
         void onSpeechStartDetected(string sessionId, long offset);
+
+        void onClientSideSpeechStartDetected(string sessionId, long offset);
+        void onClientSideSpeechEndDetected(string sessionId, long offset);
+        void onRecognitionTimerExpired(string sessionId, DateTime signalTime);
 
         /// <summary>
         /// Called when end of speech has been detected.
