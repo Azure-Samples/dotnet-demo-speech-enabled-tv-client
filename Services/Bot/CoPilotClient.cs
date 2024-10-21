@@ -11,14 +11,14 @@ using SpeechEnabledTvClient .Monitoring;
 
 namespace SpeechEnabledTvClient .Services.Bot
 {
-    public class CoPilotClient : IRecognizerResponseHandler
+    public class CopilotClient : IRecognizerResponseHandler
     {
         private readonly ILogger _logger;
         private static string? _watermark = null;
         private static IBotService? _botService;
         private static BotSettings? _appSettings;
         private string _botId;
-        private static string _botName;
+        private static string _botName = string.Empty;
         private string _botTenantId;
         private string _botTokenEndpoint;
         private static string? _endConversationMessage;
@@ -26,13 +26,8 @@ namespace SpeechEnabledTvClient .Services.Bot
         private string? _userInput = "";
 
 
-        public CoPilotClient(ILogger logger)
+        public CopilotClient(ILogger logger)
         {
-            // var configuration = new ConfigurationBuilder()
-            //                    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-            //                    .AddYamlFile("appsettings.yaml", optional: true)
-            //                    .AddEnvironmentVariables()
-            //                    .Build();
             _logger = logger;
             _appSettings = AppSettings.BotSettings();
             _endConversationMessage = _appSettings.EndConversationMessage ?? "quit";
@@ -74,7 +69,6 @@ namespace SpeechEnabledTvClient .Services.Bot
         {
             return Program.Animate("Thinking...", async () =>
             {
-                // Simulate loading app settings (replace this with your actual logic)
                 return await Task.Run(() => GetBotResponseActivitiesAsync(directLineClient, conversationId));
             }).Result; // Blocks until the task completes and retrieves the result
         }
@@ -203,8 +197,8 @@ namespace SpeechEnabledTvClient .Services.Bot
         }
 
         private string GetUserInput(SpeechEnabledTvClient .Services.Recognizer.Recognizer recognizer) {
-            // _userInput = "";
-            string[] phrases = new string[] { "SPIDER-MAN" };
+            // string[] phrases = new string[] { "SPIDER-MAN" };
+            string[]? phrases = null;
 
             while (string.IsNullOrEmpty(_userInput)) {
                 recognizer.Recognize(this, phrases).Wait();

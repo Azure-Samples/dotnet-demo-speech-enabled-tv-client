@@ -184,7 +184,7 @@ namespace SpeechEnabledTvClient
         public void StartConversation()
         {
             Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient .Monitoring.Monitor(settings));
-            CoPilotClient client = new CoPilotClient(logger);
+            CopilotClient client = new CopilotClient(logger);
             client.StartConversation(recognizer).Wait();
         }
 
@@ -306,7 +306,6 @@ namespace SpeechEnabledTvClient
         {
             return Animate("Loading settings...", async () =>
             {
-                // Simulate loading app settings (replace this with your actual logic)
                 return await Task.Run(() => AppSettings.LoadAppSettings(args));
             }).Result; // Blocks until the task completes and retrieves the result
         }
