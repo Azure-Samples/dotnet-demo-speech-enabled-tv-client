@@ -1,4 +1,4 @@
-namespace SpeechEnabledTvClient .Audio
+namespace SpeechEnabledTvClient.Audio
 {
     /// <summary>
     /// Represents an audio output stream that can be started and stopped.

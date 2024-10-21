@@ -1,4 +1,4 @@
-namespace SpeechEnabledTvClient .Services.Analyzer
+namespace SpeechEnabledTvClient.Services.Analyzer
 {
     /// <summary>
     /// Represents the response from the analyzer.

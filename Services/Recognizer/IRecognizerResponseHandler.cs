@@ -1,8 +1,8 @@
 using Microsoft.CognitiveServices.Speech;
 using System.Text.Json;
-using SpeechEnabledTvClient .Services.Analyzer;
+using SpeechEnabledTvClient.Services.Analyzer;
 
-namespace SpeechEnabledTvClient .Services.Recognizer
+namespace SpeechEnabledTvClient.Services.Recognizer
 {
     /// <summary>
     /// Represents the response handler for the speech recognizer.

@@ -4,7 +4,7 @@
 #pragma warning disable CS8601
 #pragma warning disable CS8603
 
-namespace SpeechEnabledTvClient .Services.Analyzer
+namespace SpeechEnabledTvClient.Services.Analyzer
 {
     using System;
     using System.Collections.Generic;
@@ -129,7 +129,7 @@ namespace SpeechEnabledTvClient .Services.Analyzer
     /// </summary>
     public partial class Interpretation
     {
-        public static Interpretation FromJson(string json) => JsonSerializer.Deserialize<Interpretation>(json, SpeechEnabledTvClient .Services.Analyzer.Converter.Settings);
+        public static Interpretation FromJson(string json) => JsonSerializer.Deserialize<Interpretation>(json, SpeechEnabledTvClient.Services.Analyzer.Converter.Settings);
     }
 
     /// <summary>
@@ -137,7 +137,7 @@ namespace SpeechEnabledTvClient .Services.Analyzer
     /// </summary>
     public static class Serialize
     {
-        public static string ToJson(this Interpretation self) => JsonSerializer.Serialize(self, SpeechEnabledTvClient .Services.Analyzer.Converter.Settings);
+        public static string ToJson(this Interpretation self) => JsonSerializer.Serialize(self, SpeechEnabledTvClient.Services.Analyzer.Converter.Settings);
     }
 
     /// <summary>

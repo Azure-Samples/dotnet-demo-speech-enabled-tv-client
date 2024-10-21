@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System;
 using System.IO;
 
-namespace SpeechEnabledTvClient .Audio
+namespace SpeechEnabledTvClient.Audio
 {
 
     /// <summary>

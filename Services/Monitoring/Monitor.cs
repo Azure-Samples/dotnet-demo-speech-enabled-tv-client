@@ -2,11 +2,11 @@ using Azure.Monitor.OpenTelemetry.Exporter;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
-using SpeechEnabledTvClient .Models;
+using SpeechEnabledTvClient.Models;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-namespace SpeechEnabledTvClient .Monitoring
+namespace SpeechEnabledTvClient.Monitoring
 {
     /// <summary>
     /// Represents the monitor for the application.
@@ -79,19 +79,19 @@ namespace SpeechEnabledTvClient .Monitoring
             try
             {
                 return Sdk.CreateTracerProviderBuilder()
-                    .AddSource(name)
-                    .AddAzureMonitorTraceExporter(options =>
+                   .AddSource(name)
+                   .AddAzureMonitorTraceExporter(options =>
                     {
                         options.ConnectionString = settings.AppInsightsConnectionString;
                     })
-                    .Build();                
+                   .Build();                
             }
             catch (System.Exception)
             {
                 // If the Azure Monitor exporter fails, create a default tracer provider
                 return Sdk.CreateTracerProviderBuilder()
-                    .AddSource(name)
-                    .Build();
+                   .AddSource(name)
+                   .Build();
             }
         }
 
@@ -104,19 +104,19 @@ namespace SpeechEnabledTvClient .Monitoring
             try
             {
                 return Sdk.CreateMeterProviderBuilder()
-                        .AddMeter(name)
-                        .AddAzureMonitorMetricExporter(options =>
+                       .AddMeter(name)
+                       .AddAzureMonitorMetricExporter(options =>
                         {
                             options.ConnectionString = settings.AppInsightsConnectionString;
                         })
-                        .Build();;                
+                       .Build();;                
             }
             catch (System.Exception)
             {
                 // If the Azure Monitor exporter fails, create a default meter provider
                 return Sdk.CreateMeterProviderBuilder()
-                        .AddMeter(name)
-                        .Build();;
+                       .AddMeter(name)
+                       .Build();;
             }
         }
     

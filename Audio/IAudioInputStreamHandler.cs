@@ -1,4 +1,4 @@
-namespace SpeechEnabledTvClient .Audio
+namespace SpeechEnabledTvClient.Audio
 {
 
     /// <summary>

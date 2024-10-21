@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Azure.Identity;
 
-namespace SpeechEnabledTvClient .Models
+namespace SpeechEnabledTvClient.Models
 {
     
     /// <summary>
@@ -53,17 +53,17 @@ namespace SpeechEnabledTvClient .Models
 
                     /// Do a first pass to get top-level app settings
                     IConfigurationBuilder builder = new ConfigurationBuilder()
-                        .AddEnvironmentVariables(prefix: ENV_PREFIX)
-                        .AddCommandLine(args);
+                       .AddEnvironmentVariables(prefix: ENV_PREFIX)
+                       .AddCommandLine(args);
 
                     var configuration = builder.Build();
                     configuration.Bind(_instance);
 
                     /// Do a second pass to get the rest of the settings
                     builder = new ConfigurationBuilder()
-                        .AddYamlFile(_instance.ConfigPath, optional: true)
-                        .AddEnvironmentVariables(prefix: ENV_PREFIX)
-                        .AddCommandLine(args);
+                       .AddYamlFile(_instance.ConfigPath, optional: true)
+                       .AddEnvironmentVariables(prefix: ENV_PREFIX)
+                       .AddCommandLine(args);
 
                     configuration = builder.Build();
 
