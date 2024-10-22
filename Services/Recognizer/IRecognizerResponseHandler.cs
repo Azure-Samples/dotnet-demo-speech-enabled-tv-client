@@ -9,6 +9,38 @@ namespace SpeechEnabledTvClient.Services.Recognizer
     /// </summary>
     public interface IRecognizerResponseHandler
     {
+        /// <summary>
+        /// Called when the recognizer has started listening.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        void onListeningStarted(string sessionId);
+
+        /// <summary>
+        /// Called when the recognizer has stopped listening.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this stop request.</param>
+        void onListeningStopped(string sessionId);
+
+        /// <summary>
+        /// Called when the recognizer has detected the start of speech via client-side endpointer.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        /// <param name="offset">The offset in the audio stream.</param>
+        void onClientSideSpeechStartDetected(string sessionId, long offset);
+
+        /// <summary>
+        /// Called when the recognizer has detected the end of speech via client-side endpointer.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        /// <param name="offset">The offset in the audio stream.</param>
+        void onClientSideSpeechEndDetected(string sessionId, long offset);
+
+        /// <summary>
+        /// Called when the recognition timer has expired.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        /// <param name="signalTime">The time the signal was received.</param>
+        void onRecognitionTimerExpired(string sessionId, DateTime signalTime);
 
         /// <summary>
         /// Called when the recognition has started.
@@ -28,10 +60,6 @@ namespace SpeechEnabledTvClient.Services.Recognizer
         /// <param name="sessionId"></param>
         /// <param name="offset"></param>
         void onSpeechStartDetected(string sessionId, long offset);
-
-        void onClientSideSpeechStartDetected(string sessionId, long offset);
-        void onClientSideSpeechEndDetected(string sessionId, long offset);
-        void onRecognitionTimerExpired(string sessionId, DateTime signalTime);
 
         /// <summary>
         /// Called when end of speech has been detected.
