@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System;
 using System.IO;
 
-namespace SpeechEnabledTvClient .Audio
+namespace SpeechEnabledTvClient.Audio
 {
 
     /// <summary>
@@ -144,6 +144,7 @@ namespace SpeechEnabledTvClient .Audio
                             userData: IntPtr.Zero
                         );
                         stream.Start();
+                        handler.onRecordingStarted(sessionId);
                     }
                     catch (System.Exception e)
                     {
@@ -175,6 +176,7 @@ namespace SpeechEnabledTvClient .Audio
                     finally
                     {
                         isRecording = false;
+                        handler?.onRecordingStopped(sessionId);
                     }
                 }
             }

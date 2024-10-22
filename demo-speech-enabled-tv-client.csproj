@@ -6,6 +6,7 @@
     <RootNamespace>demo-speech-enabled-tv-client</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);NETSDK1206</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,7 +24,7 @@
     <PackageReference Include="Microsoft.Rest.ClientRuntime" Version="2.3.24" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.9.0" />
-    <PackageReference Include="OpusVAD" Version="1.0.0" />
+    <PackageReference Include="OpusVad" Version="1.0.0" />
     <PackageReference Include="portaudiosharp2" Version="1.0.4" />
     <PackageReference Include="ReadLine" Version="2.0.1" />
     <PackageReference Include="Serilog.Extensions.Logging.File" Version="3.0.0" />

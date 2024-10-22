@@ -1,7 +1,7 @@
-using SpeechEnabledTvClient .Audio;
+using SpeechEnabledTvClient.Audio;
 using Microsoft.Extensions.Logging;
 
-namespace SpeechEnabledTvClient .Services.Recognizer
+namespace SpeechEnabledTvClient.Services.Recognizer
 {
     /// <summary>
     /// Records audio from the microphone and saves it to file.
@@ -18,6 +18,22 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         public Recorder(ILogger logger)
         {
             this.logger = logger;
+        }
+
+        /// <summary>
+        /// Called when recording has started.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        public void onRecordingStarted(string sessionId) {
+            // Not used
+        }
+
+        /// <summary>
+        /// Called when recording has stopped.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this stop request.</param>
+        public void onRecordingStopped(string sessionId) {
+            // Not used
         }
 
         /// <summary>
@@ -69,9 +85,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
                 microphone.Start(this);
                 Console.WriteLine("Recording (press any key to stop)...");
                 Console.ReadKey();
-                Console.WriteLine("Stopping recording...");
                 microphone.Stop();
-                Console.WriteLine();
             }
             finally
             {

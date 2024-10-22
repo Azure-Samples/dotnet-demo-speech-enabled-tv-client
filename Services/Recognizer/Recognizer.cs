@@ -8,11 +8,11 @@ using Azure.Core;
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
 using Microsoft.Extensions.Logging;
-using SpeechEnabledTvClient .Audio;
-using SpeechEnabledTvClient .Endpointer;
-using SpeechEnabledTvClient .Models;
-using SpeechEnabledTvClient .Monitoring;
-using SpeechEnabledTvClient .Services.Analyzer;
+using SpeechEnabledTvClient.Audio;
+using SpeechEnabledTvClient.Endpointer;
+using SpeechEnabledTvClient.Models;
+using SpeechEnabledTvClient.Monitoring;
+using SpeechEnabledTvClient.Services.Analyzer;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -23,7 +23,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 
-namespace SpeechEnabledTvClient .Services.Recognizer
+namespace SpeechEnabledTvClient.Services.Recognizer
 {
     /// <summary>
     /// Represents the speech recognizer.
@@ -32,7 +32,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
     {
         // properties for logging and monitoring
         private readonly ILogger logger;
-        private readonly SpeechEnabledTvClient .Monitoring.Monitor monitor;
+        private readonly SpeechEnabledTvClient.Monitoring.Monitor monitor;
         private Activity? activity;
         private long _audioDurationInMs = 0;
         private DateTime eosTime = DateTime.Now;
@@ -52,6 +52,8 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         private SpeechRecognizer _recognizer;
         private TimerService recognizerTimer; // Timer to force recognition to stop after a certain time
         TaskCompletionSource<bool> recognitionTaskCompletionSource = new TaskCompletionSource<bool>(); // Task completion source to signal recognition completion
+        TaskCompletionSource<bool> sosTaskCompletionSource = new TaskCompletionSource<bool>(); // Task completion source to signal SoS detection
+        IRecognizerResponseHandler? _handler;
 
         // Audio input/output streams
         private IAudioInputStream? audioStream;             // audio input stream (e.g. microphone)
@@ -61,11 +63,9 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         // Endpointer
         private EndpointerSettings endpointerSettings = AppSettings.EndpointerSettings();
         private IEndpointer endpointer;
-        private Queue<byte[]> audioBuffer = new Queue<byte[]>(); // queue audio data while waiting for StartOfSpeech
+        private CircularBuffer<byte[]> audioBuffer; // queue audio data while waiting for StartOfSpeech
         private bool sosDetected { get; set; } // StartOfSpeech detected flag
         private bool eosDetected { get; set; } // EndOfSpeech detected flag
-        private int sosPosition { get; set; } = 0; // StartOfSpeech position
-        private int eosPosition { get; set; } = 0; // EndOfSpeech position
         
         // Flags
         private int requestId = 0; // request ID to track the recognition requests
@@ -76,7 +76,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         /// </summary>
         /// <param name="logger">The logger to use.</param>
         /// <param name="monitor">The monitor to use.</param>
-        public Recognizer(ILogger logger, SpeechEnabledTvClient .Monitoring.Monitor monitor)
+        public Recognizer(ILogger logger, SpeechEnabledTvClient.Monitoring.Monitor monitor)
         {
             // Initialize the logger and monitor
             this.logger = logger;
@@ -114,6 +114,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
             // Initialize the recognizer and endpointer.
             _recognizer = new SpeechRecognizer(config, audioConfig);
             endpointer = new OpusVADEndpointer(this.logger, endpointerSettings);
+            audioBuffer = new CircularBuffer<byte[]>(endpointerSettings.StartOfSpeechWindowInMs / 20);
 
             // Initialize the recognition timer
             recognizerTimer = new TimerService(settings.RecognitionTimeoutMs);
@@ -148,6 +149,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
             {
                 handler = this; // this class implements the handler interface to simply log the events
             }
+            _handler = handler;
 
             using (activity = monitor.activitySource.StartActivity("Recognize"))
             {
@@ -157,6 +159,9 @@ namespace SpeechEnabledTvClient .Services.Recognizer
                 // Initialize the recognizer
                 await InitializeRecognizer(analyzer, handler, grammarPhrases);
 
+                // Wait for StartOfSpeech to be detected
+                bool sosResult = await sosTaskCompletionSource.Task.ConfigureAwait(false);
+
                 // Start continuous recognition - requires client-side logic to determine when to stop.
                 await _recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
 
@@ -164,6 +169,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
                 await recognitionTaskCompletionSource.Task.ConfigureAwait(false);
                 recognizerTimer.Stop();
 
+                // Stop continuous recognition if eos is detected or recognition timeout is reached.
                 await _recognizer.StopContinuousRecognitionAsync().ConfigureAwait(false);
 
                 // Cancel cancellationToken to stop the token renewal task.
@@ -187,14 +193,17 @@ namespace SpeechEnabledTvClient .Services.Recognizer
             monitor.RequestId = requestId;
             activity?.SetTag("RequestId", requestId);
 
-            // Start the audio stream
+            // Initialize flags and variables used for recognition
             sosDetected = eosDetected = false;
             audioStream = new Microphone(logger);
             recognitionTaskCompletionSource = new TaskCompletionSource<bool>();
-            audioBuffer = new Queue<byte[]>();
+            sosTaskCompletionSource = new TaskCompletionSource<bool>();
+            audioBuffer.Clear();
+            _audioDurationInMs = 0;
 
+            // Start the audio stream
             endpointer.Start(this);
-            audioStream.Start(this);
+            audioStream.Start(this, monitor.SessionId); // NOTE: we have a slight issue here with the session ID. It will be empty for first recognition request.
 
             // Run task for token renewal in the background.
             tokenRenewTask = StartTokenRenewTask(source.Token, _recognizer);
@@ -259,7 +268,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
                                         }));
 
                     // Clear the session ID
-                    monitor.SessionId = string.Empty;
+                    // monitor.SessionId = string.Empty;
 
                     // Call the handler
                     handler?.onRecognitionComplete(e.SessionId);
@@ -509,36 +518,27 @@ namespace SpeechEnabledTvClient .Services.Recognizer
             _audioDurationInMs += (data.Length / 640 * 20);
 
             inputStream?.Write(data, data.Length);
+
+            // save audio to file for debug if feature is enabled
+            if (settings.CaptureAudio && audioOutFileForDebug != null) {
+                audioOutFileForDebug.onAudioData(data);
+            }
         }
 
         /// <summary>
         /// Streams buffered audio data to the recognizer.
         /// </summary>
         /// <param name="sessionId">The session ID associated with this audio data.</param>
-        /// <param name="data">The audio data to stream.</param>
         /// <returns></returns>
         /// <remarks>
         /// This method streams the buffered audio data to the recognizer after StartOfSpeech is detected.
-        /// It discards the audio data that came before StartOfSpeech.
         /// </remarks>
-        private void StreamBufferedAudio(string sessionId, byte[] data) {
-            // How many samples in the buffer?
-            int totalSamplesBuffered = audioBuffer.Count * (data.Length/sizeof(Int16));
-            
-            // We discard those that came before StartOfSpeech
-            // TODO: Don't use hardcoded 20ms frame size
-            int discardSamples = totalSamplesBuffered - ((sosPosition / 20) * endpointer.GetFrameSize());
-
-            // How many buffers is that?
-            int discardCount = discardSamples / (data.Length/sizeof(Int16));
-
-            while (audioBuffer.Count > 0)
+        private void StreamBufferedAudio(string sessionId) {
+            while (!audioBuffer.IsEmpty)
             {
-                // Keep dequeueing until we've discarded enough and then start streaming
-                byte[] audioData = audioBuffer.Dequeue();
-                if (--discardCount < 0) {
-                    StreamAudio(sessionId, audioData);
-                }
+                byte[] audioData = audioBuffer.Back();
+                audioBuffer.PopBack();
+                StreamAudio(sessionId, audioData);
             }
         }
 
@@ -558,8 +558,6 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         /// <param name="e">The event arguments.</param>
         public void OnRecognitionTimerExpired(object? sender, TimerServiceEventArgs e)
         {
-            logger.LogWarning($"[{e.SessionId}] Recognition timer elapsed: {e.SignalTime:G}");
-
             // Log the expiration event
             activity?.AddEvent(new ActivityEvent("RecognitionTimerExpired", 
                                 DateTimeOffset.UtcNow, 
@@ -572,6 +570,7 @@ namespace SpeechEnabledTvClient .Services.Recognizer
 
             eosTime = DateTime.Now;
             UpdateRecognitionTaskCompletionSource(); // Signal recognition completion
+            _handler?.onRecognitionTimerExpired(e.SessionId, e.SignalTime);
         }
 
         /// Audio stream output handler methods
@@ -599,17 +598,30 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         /// Audio stream input handler methods
 
         /// <summary>
+        /// Called when recording has started.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        public void onRecordingStarted(string sessionId) {
+            // NOTE: we have a slight issue here with the session ID. It will be empty for first recognition request.
+            _handler?.onListeningStarted(sessionId);
+        }
+
+        /// <summary>
+        /// Called when recording has stopped.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this stop request.</param>
+        public void onRecordingStopped(string sessionId) {
+            // NOTE: we have a slight issue here with the session ID. It will be empty for first recognition request.
+            _handler?.onListeningStopped(sessionId);
+        }
+
+        /// <summary>
         /// Called when audio data is received from the audio input stream.
         /// </summary>
         /// <param name="sessionId">The session ID associated with this audio data.</param>
         /// <param name="data">The audio data.</param>
         public void onAudioData(string sessionId, byte[] data)
         {
-            // save audio to file for debug if feature is enabled
-            if (settings.CaptureAudio && audioOutFileForDebug != null) {
-                audioOutFileForDebug.onAudioData(data);
-            }
-
             // Run audio through endpointer
             endpointer.ProcessAudio(data);
 
@@ -620,11 +632,11 @@ namespace SpeechEnabledTvClient .Services.Recognizer
             
             if (!sosDetected) {
                 // Buffer audio data while waiting for StartOfSpeech
-                audioBuffer.Enqueue(data);
+                audioBuffer.PushFront(data);
 
-            } else if (sosDetected && audioBuffer.Count > 0) {
+            } else if (sosDetected && !audioBuffer.IsEmpty) {
                 // If we have StartOfSpeech and audio buffer, we can start streaming
-                StreamBufferedAudio(sessionId, data);
+                StreamBufferedAudio(sessionId);
 
                 // And stream the current audio data
                 StreamAudio(sessionId, data);
@@ -641,8 +653,6 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         /// </summary>
         /// <param name="position">The position in the audio stream.</param>
         public void OnStartOfSpeech(int position) {
-            logger.LogInformation($"[{Identifier(monitor.SessionId)}] Client start of speech detected at {position}ms");
-
             // Log the client-side speech start detected event
             activity?.AddEvent(new ActivityEvent("ClientSideOnStartOfSpeechDetected", 
                                 DateTimeOffset.UtcNow, 
@@ -653,8 +663,9 @@ namespace SpeechEnabledTvClient .Services.Recognizer
                                     {"RequestId", requestId}
                                 }));
 
-            sosPosition = position;
+            sosTaskCompletionSource.TrySetResult(true);
             sosDetected = true;
+            _handler?.onClientSideSpeechStartDetected(monitor.SessionId, (long)position);
         }
 
         /// <summary>
@@ -662,8 +673,6 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         /// </summary>
         /// <param name="position">The position in the audio stream.</param>
         public void OnEndOfSpeech(int position) {
-            logger.LogInformation($"[{Identifier(monitor.SessionId)}] Client end of speech detected at {position}ms");
-
             // Log the client-side speech end detected event
             activity?.AddEvent(new ActivityEvent("ClientSideOnEndOfSpeechDetected", 
                                 DateTimeOffset.UtcNow, 
@@ -674,12 +683,12 @@ namespace SpeechEnabledTvClient .Services.Recognizer
                                     {"RequestId", requestId}
                                 }));
 
-            eosPosition = position;
             eosDetected = true;
             eosTime = DateTime.Now;
 
             // Signal that recognition is ready for completion
             UpdateRecognitionTaskCompletionSource();
+            _handler?.onClientSideSpeechEndDetected(monitor.SessionId, (long)position);
         }
 
         /// <summary>
@@ -757,6 +766,26 @@ namespace SpeechEnabledTvClient .Services.Recognizer
         public void onRecognitionError(string sessionId, string error, string details)
         {
             logger.LogError($"[{Identifier(sessionId)}] Recognition error: {error} - {details}");
+        }
+
+        public void onListeningStarted(string sessionId) {
+            logger.LogInformation($"[{Identifier(sessionId)}] Listening...");
+        }
+
+        public void onListeningStopped(string sessionId) {
+            logger.LogInformation($"[{Identifier(sessionId)}] Listening stopped");
+        }
+
+        public void onClientSideSpeechStartDetected(string sessionId, long offset) {
+            logger.LogInformation($"[{Identifier(sessionId)}] Client start of speech detected at {offset}ms");
+        }
+
+        public void onClientSideSpeechEndDetected(string sessionId, long offset) {
+            logger.LogInformation($"[{Identifier(sessionId)}] Client end of speech detected at {offset}ms");
+        }
+
+        public void onRecognitionTimerExpired(string sessionId, DateTime signalTime) {
+            logger.LogWarning($"[{sessionId}] Recognition timer elapsed: {signalTime:G}");
         }
 
         public void onAnalysisResult(string sessionId, AnalyzerResponse response)

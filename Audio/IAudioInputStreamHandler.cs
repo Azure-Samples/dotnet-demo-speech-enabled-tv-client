@@ -1,4 +1,4 @@
-namespace SpeechEnabledTvClient .Audio
+namespace SpeechEnabledTvClient.Audio
 {
 
     /// <summary>
@@ -6,6 +6,19 @@ namespace SpeechEnabledTvClient .Audio
     /// </summary>
     public interface IAudioInputStreamHandler
     {
+
+        /// <summary>
+        /// Called when recording has started.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        void onRecordingStarted(string sessionId);
+
+        /// <summary>
+        /// Called when recording has stopped.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this stop request.</param>
+        void onRecordingStopped(string sessionId);
+
         /// <summary>
         /// Receives audio data.
         /// </summary>

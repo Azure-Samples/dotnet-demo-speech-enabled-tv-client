@@ -5,7 +5,7 @@ using System.IO;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 
-namespace SpeechEnabledTvClient .Audio
+namespace SpeechEnabledTvClient.Audio
 {
     /// <summary> 
     /// Represents an audio file that can be written to.

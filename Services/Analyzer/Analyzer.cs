@@ -2,8 +2,8 @@ using Azure;
 using Azure.Core;
 using Azure.AI.Language.Conversations;
 using Microsoft.Extensions.Logging;
-using SpeechEnabledTvClient .Models;
-using SpeechEnabledTvClient .Monitoring;
+using SpeechEnabledTvClient.Models;
+using SpeechEnabledTvClient.Monitoring;
 using System;
 using System.Diagnostics;
 using System.Net.Http;
@@ -11,7 +11,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SpeechEnabledTvClient .Services.Analyzer
+namespace SpeechEnabledTvClient.Services.Analyzer
 {
     /// <summary>
     /// Represents the Azure CLU analyzer.
@@ -19,7 +19,7 @@ namespace SpeechEnabledTvClient .Services.Analyzer
     public class Analyzer
     {
         ILogger logger;
-        SpeechEnabledTvClient .Monitoring.Monitor monitor;
+        SpeechEnabledTvClient.Monitoring.Monitor monitor;
         Activity? activity;
 
         AnalyzerSettings settings = AppSettings.AnalyzerSettings();
@@ -30,7 +30,7 @@ namespace SpeechEnabledTvClient .Services.Analyzer
         /// </summary>
         /// <param name="logger">The logger to use.</param>
         /// <param name="monitor">The monitor to use.</param>
-        public Analyzer(ILogger logger, SpeechEnabledTvClient .Monitoring.Monitor monitor)
+        public Analyzer(ILogger logger, SpeechEnabledTvClient.Monitoring.Monitor monitor)
         {
             this.logger = logger;
             this.monitor = monitor.Initialize("CLU");
@@ -71,7 +71,7 @@ namespace SpeechEnabledTvClient .Services.Analyzer
                     deploymentName = settings.CluDeploymentName,
                     verbose = true,
 
-                    // Use Utf16CodeUnit for strings in .NET.
+                    // Use Utf16CodeUnit for strings in.NET.
                     stringIndexType = "Utf16CodeUnit",
                 },
             });
