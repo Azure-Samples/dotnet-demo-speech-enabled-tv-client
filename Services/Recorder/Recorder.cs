@@ -21,6 +21,22 @@ namespace SpeechEnabledTvClient.Services.Recognizer
         }
 
         /// <summary>
+        /// Called when recording has started.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this start request.</param>
+        public void onRecordingStarted(string sessionId) {
+            // Not used
+        }
+
+        /// <summary>
+        /// Called when recording has stopped.
+        /// </summary>
+        /// <param name="sessionId">The session ID associated with this stop request.</param>
+        public void onRecordingStopped(string sessionId) {
+            // Not used
+        }
+
+        /// <summary>
         /// Called when audio data is received from microphone. Writes audio data to file.
         /// </summary>
         /// <param name="sessionId">The session ID associated with this audio data.</param>
@@ -69,9 +85,7 @@ namespace SpeechEnabledTvClient.Services.Recognizer
                 microphone.Start(this);
                 Console.WriteLine("Recording (press any key to stop)...");
                 Console.ReadKey();
-                Console.WriteLine("Stopping recording...");
                 microphone.Stop();
-                Console.WriteLine();
             }
             finally
             {
