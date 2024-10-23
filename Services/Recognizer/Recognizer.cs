@@ -50,6 +50,7 @@ namespace SpeechEnabledTvClient.Services.Recognizer
 
         // Speech recognizer instance
         private SpeechRecognizer _recognizer;
+        private TimerService? listeningTimer; // Timer to force listening for sos to stop after a certain time
         private TimerService recognizerTimer; // Timer to force recognition to stop after a certain time
         TaskCompletionSource<bool> recognitionTaskCompletionSource = new TaskCompletionSource<bool>(); // Task completion source to signal recognition completion
         TaskCompletionSource<bool> sosTaskCompletionSource = new TaskCompletionSource<bool>(); // Task completion source to signal SoS detection
@@ -116,8 +117,11 @@ namespace SpeechEnabledTvClient.Services.Recognizer
             endpointer = new OpusVADEndpointer(this.logger, endpointerSettings);
             audioBuffer = new CircularBuffer<byte[]>(endpointerSettings.StartOfSpeechWindowInMs / 20);
 
-            // Initialize the recognition timer
+            // Initialize the recognition timers
             recognizerTimer = new TimerService(settings.RecognitionTimeoutMs);
+            if (settings.ListeningTimeoutMs > 0) {
+                listeningTimer = new TimerService(settings.ListeningTimeoutMs);
+            }
         }
 
         /// <summary>
@@ -151,6 +155,12 @@ namespace SpeechEnabledTvClient.Services.Recognizer
             }
             _handler = handler;
 
+            // Wait for StartOfSpeech to be detected
+            InitializeAudioCapture();
+            if (!await AwaitStartOfSpeech().ConfigureAwait(false)) {
+                return;
+            }
+
             using (activity = monitor.activitySource.StartActivity("Recognize"))
             {
                 // Get the start time to measure the total processing time
@@ -158,9 +168,6 @@ namespace SpeechEnabledTvClient.Services.Recognizer
 
                 // Initialize the recognizer
                 await InitializeRecognizer(analyzer, handler, grammarPhrases);
-
-                // Wait for StartOfSpeech to be detected
-                bool sosResult = await sosTaskCompletionSource.Task.ConfigureAwait(false);
 
                 // Start continuous recognition - requires client-side logic to determine when to stop.
                 await _recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
@@ -174,7 +181,7 @@ namespace SpeechEnabledTvClient.Services.Recognizer
 
                 // Cancel cancellationToken to stop the token renewal task.
                 endpointer.Stop();
-                source.Cancel();
+                // source.Cancel();
 
                 // Calculate the total processing time
                 TimeSpan processingTime = DateTime.Now - startTime;
@@ -183,6 +190,45 @@ namespace SpeechEnabledTvClient.Services.Recognizer
             }
         }
         
+        /// <summary>
+        /// Initializes the audio capture.
+        /// </summary>
+        private void InitializeAudioCapture() {
+            // Initialize flags and variables used for capturing audio
+            sosDetected = eosDetected = false;
+            audioStream = new Microphone(logger);
+            sosTaskCompletionSource = new TaskCompletionSource<bool>();
+            audioBuffer.Clear();
+            _audioDurationInMs = 0;
+
+            // Start the audio stream
+            endpointer.Start(this);
+            audioStream.Start(this, monitor.SessionId); // NOTE: we have a slight issue here with the session ID. It will be empty for first recognition request.
+
+            // Start the listening timer
+            listeningTimer?.Start(monitor.SessionId, OnListeningTimerExpired);
+        }
+
+        /// <summary>
+        /// Waits for the start of speech to be detected.
+        /// </summary>
+        /// <description>
+        /// This method waits for the start of speech to be detected by the endpointer.
+        /// If the start of speech is not detected within the specified timeout, the method returns false.
+        /// </description>
+        private async Task<bool> AwaitStartOfSpeech() {
+            bool sosResult = await sosTaskCompletionSource.Task.ConfigureAwait(false);
+            listeningTimer?.Stop(); // Stop the listening timer in case it's still running
+            
+            // If StartOfSpeech is not detected, stop the audio stream and endpointer
+            if (!sosResult) {
+                Console.WriteLine("Timed out waiting for start of speech.");
+                StopAudioStream();
+                endpointer.Stop();
+            }
+            return sosResult;
+        }
+
         /// <summary>
         /// Initializes the recognizer.
         /// </summary>
@@ -194,16 +240,7 @@ namespace SpeechEnabledTvClient.Services.Recognizer
             activity?.SetTag("RequestId", requestId);
 
             // Initialize flags and variables used for recognition
-            sosDetected = eosDetected = false;
-            audioStream = new Microphone(logger);
             recognitionTaskCompletionSource = new TaskCompletionSource<bool>();
-            sosTaskCompletionSource = new TaskCompletionSource<bool>();
-            audioBuffer.Clear();
-            _audioDurationInMs = 0;
-
-            // Start the audio stream
-            endpointer.Start(this);
-            audioStream.Start(this, monitor.SessionId); // NOTE: we have a slight issue here with the session ID. It will be empty for first recognition request.
 
             // Run task for token renewal in the background.
             tokenRenewTask = StartTokenRenewTask(source.Token, _recognizer);
@@ -573,6 +610,17 @@ namespace SpeechEnabledTvClient.Services.Recognizer
             _handler?.onRecognitionTimerExpired(e.SessionId, e.SignalTime);
         }
 
+        /// <summary>
+        /// Handles the listening timer expiration event.
+        /// </summary>
+        /// <param name="sender">The sender of the event.</param>
+        /// <param name="e">The event arguments.</param>
+        public void OnListeningTimerExpired(object? sender, TimerServiceEventArgs e)
+        {
+            // Signal that StartOfSpeech is not detected
+            sosTaskCompletionSource.TrySetResult(false);            
+        }
+
         /// Audio stream output handler methods
 
         /// <summary>
@@ -769,11 +817,13 @@ namespace SpeechEnabledTvClient.Services.Recognizer
         }
 
         public void onListeningStarted(string sessionId) {
-            logger.LogInformation($"[{Identifier(sessionId)}] Listening...");
+            // Let's just capture this event locally since it's only interesting to the user
+            Console.WriteLine("Listening...");
         }
 
         public void onListeningStopped(string sessionId) {
-            logger.LogInformation($"[{Identifier(sessionId)}] Listening stopped");
+            // Let's just capture this event locally since it's only interesting to the user
+            Console.WriteLine("Listening stopped");
         }
 
         public void onClientSideSpeechStartDetected(string sessionId, long offset) {

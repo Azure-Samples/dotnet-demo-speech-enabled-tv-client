@@ -227,9 +227,10 @@ namespace SpeechEnabledTvClient
             Console.WriteLine($"  --Language                        Language code for recognition. Default: {RecognizerSettings.Defaults.Language}");
             Console.WriteLine($"  --SourceAudioType                 Audio input type [file, microphone]. NOTE: File not supported yet. Default: {RecognizerSettings.Defaults.SourceAudioType}");
             Console.WriteLine($"  --SourceAudioPath                 Path to audio file. Only used if SourceAudioType is File. Default: {RecognizerSettings.Defaults.SourceAudioPath}");
-            Console.WriteLine($"  --ProfanityOption                 Profanity filter option [raw, masked]. Default: {RecognizerSettings.Defaults.ProfanityOption}");
+            Console.WriteLine($"  --ProfanityOption                 Profanity filter option [Masked, Removed, Raw]. Default: {RecognizerSettings.Defaults.ProfanityOption}");
             Console.WriteLine($"  --InitialSilenceTimeoutMs         Initial silence timeout in milliseconds. Default: {RecognizerSettings.Defaults.InitialSilenceTimeoutMs}");
             Console.WriteLine($"  --EndSilenceTimeoutMs             End silence timeout in milliseconds. Default: {RecognizerSettings.Defaults.EndSilenceTimeoutMs}");
+            Console.WriteLine($"  --ListeningTimeoutMs              Listening timeout in milliseconds if start of speech is not detected. Set to 0 to disable. Default: {RecognizerSettings.Defaults.ListeningTimeoutMs}"); 
             Console.WriteLine($"  --RecognitionTimeoutMs            Recognition timeout in milliseconds. Default: {RecognizerSettings.Defaults.RecognitionTimeoutMs}");
             Console.WriteLine($"  --StablePartialResultThreshold    Stable partial result threshold. Default: {RecognizerSettings.Defaults.StablePartialResultThreshold}");
             Console.WriteLine($"  --CaptureAudio                    Enable to capture audio to file for debug. Default: {RecognizerSettings.Defaults.CaptureAudio}");
@@ -239,7 +240,7 @@ namespace SpeechEnabledTvClient
             Console.WriteLine($"  --ServiceRegion                   Azure Speech Service region. Default: {SynthesizerSettings.Defaults.ServiceRegion}");
             Console.WriteLine($"  --VoiceName                       Azure TTS voice name. Default: {SynthesizerSettings.Defaults.VoiceName}");
             Console.WriteLine($"  --SpeechSynthesisOutputFormat     Azure TTS output format. Default: {SynthesizerSettings.Defaults.SpeechSynthesisOutputFormat}");
-            Console.WriteLine($"  --DestAudioType                   Audio output type [file, microphone]. NOTE: Microphone not supported yet. Default: {SynthesizerSettings.Defaults.DestAudioType}");
+            Console.WriteLine($"  --DestAudioType                   Audio output type [speaker, file]. Default: {SynthesizerSettings.Defaults.DestAudioType}");
             Console.WriteLine($"  --DestAudioPath                   Path to audio file. Only used if DestAudioType is File. Default: {SynthesizerSettings.Defaults.DestAudioPath}");
             Console.WriteLine();
             Console.WriteLine("Analyzer Options:");

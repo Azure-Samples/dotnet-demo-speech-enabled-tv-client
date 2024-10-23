@@ -64,19 +64,22 @@ Recognizer Options:
   --SubscriptionKey                 Azure Speech Service subscription key. Default: YOUR_SUBSCRIPTION_KEY
   --ServiceRegion                   Azure Speech Service region. Default: eastus
   --Language                        Language code for recognition. Default: en-US
-  --SourceAudioType                 Audio input type [File, Microphone]. NOTE: File not supported yet. Default: microphone
+  --SourceAudioType                 Audio input type [file, microphone]. NOTE: File not supported yet. Default: microphone
   --SourceAudioPath                 Path to audio file. Only used if SourceAudioType is File. Default: ./audio
   --ProfanityOption                 Profanity filter option [Masked, Removed, Raw]. Default: masked
   --InitialSilenceTimeoutMs         Initial silence timeout in milliseconds. Default: 10000
   --EndSilenceTimeoutMs             End silence timeout in milliseconds. Default: 1200
+  --ListeningTimeoutMs              Listening timeout in milliseconds if start of speech is not detected. Set to 0 to disable. Default: 10000
+  --RecognitionTimeoutMs            Recognition timeout in milliseconds. Default: 20000
   --StablePartialResultThreshold    Stable partial result threshold. Default: 2
+  --CaptureAudio                    Enable to capture audio to file for debug. Default: False
 
 Synthesizer Options:
   --SubscriptionKey                 Azure Speech Service subscription key. Default: YOUR_SUBSCRIPTION_KEY
   --ServiceRegion                   Azure Speech Service region. Default: eastus
   --VoiceName                       Azure TTS voice name. Default: en-US-AvaMultilingualNeural
   --SpeechSynthesisOutputFormat     Azure TTS output format. Default: Raw22050Hz16BitMonoPcm
-  --DestAudioType                   Audio output type [speaker, File], Default: file
+  --DestAudioType                   Audio output type [speaker, file]. Default: speaker
   --DestAudioPath                   Path to audio file. Only used if DestAudioType is File. Default: ./audio
 
 Analyzer Options:
@@ -121,6 +124,7 @@ Recognizer:
   ProfanityOption: masked # raw or masked
   InitialSilenceTimeoutMs: 10000 # in milliseconds
   EndSilenceTimeoutMs: 1200 # in milliseconds
+  ListeningTimeoutMs: 10000 # in milliseconds
   RecognitionTimeoutMs: 20000 # in milliseconds
   StablePartialResultThreshold: 2
   CaptureAudio: false # enable to capture audio to file for debug
@@ -129,7 +133,7 @@ Synthesizer:
   SubscriptionKey: YOUR_AZURE_SPEECH_KEY
   ServiceRegion: eastus
   VoiceName: en-US-AvaMultilingualNeural
-  SpeechSynthesisOutputFormat: Raw48KHz16BitMonoPcm
+  SpeechSynthesisOutputFormat: Raw22050Hz16BitMonoPcm
   DestAudioType: file # file or speaker
   DestAudioPath: ./audio # path to either a folder containing audio or a specific audio file
 
