@@ -21,6 +21,7 @@ namespace SpeechEnabledTvClient.Models
             public const string ProfanityOption = "masked"; // raw or masked
             public const int InitialSilenceTimeoutMs = 10000; // in milliseconds
             public const int EndSilenceTimeoutMs = 1200; // in milliseconds
+            public const int ListeningTimeoutMs =  10000; // in milliseconds
             public const int RecognitionTimeoutMs = 20000; // in milliseconds
             public const int StablePartialResultThreshold = 2;
             public const bool CaptureAudio = false;
@@ -34,6 +35,7 @@ namespace SpeechEnabledTvClient.Models
         public string ProfanityOption { get; set; } = Defaults.ProfanityOption;
         public int InitialSilenceTimeoutMs { get; set; } = Defaults.InitialSilenceTimeoutMs;
         public int EndSilenceTimeoutMs { get; set; } = Defaults.EndSilenceTimeoutMs;
+        public int ListeningTimeoutMs { get; set; } = Defaults.ListeningTimeoutMs;
         public int RecognitionTimeoutMs { get; set; } = Defaults.RecognitionTimeoutMs;
         public int StablePartialResultThreshold { get; set; } = Defaults.StablePartialResultThreshold;
         public bool CaptureAudio {get; set; } = Defaults.CaptureAudio;
