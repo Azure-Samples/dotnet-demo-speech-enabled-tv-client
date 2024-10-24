@@ -35,7 +35,6 @@ namespace SpeechEnabledTvClient.Services.Recognizer
         private readonly SpeechEnabledTvClient.Monitoring.Monitor monitor;
         private Activity? activity;
         private long _audioDurationInMs = 0;
-        private DateTime eosTime = DateTime.Now;
         
         // Settings & configs
         private RecognizerSettings settings = AppSettings.RecognizerSettings();
@@ -66,7 +65,38 @@ namespace SpeechEnabledTvClient.Services.Recognizer
         private IEndpointer endpointer;
         private CircularBuffer<byte[]> audioBuffer; // queue audio data while waiting for StartOfSpeech
         private bool sosDetected { get; set; } // StartOfSpeech detected flag
-        private bool eosDetected { get; set; } // EndOfSpeech detected flag
+
+
+        // Synchronize access to EndOfSpeech (EOS) detection flags
+        private readonly object eosLock = new object();
+        private DateTime _eosTime = DateTime.Now; // EndOfSpeech timestamp
+        private DateTime eosTime {
+            get {
+                lock (eosLock) {
+                    return _eosTime;
+                }
+            }
+            set {
+                lock (eosLock) {
+                    _eosTime = value;
+                }
+            }
+        }
+
+        private bool _eosDetected; // EndOfSpeech detected flag
+        private bool eosDetected {
+            get {
+                lock (eosLock) {
+                    return _eosDetected;
+                }
+            }
+            set {
+                lock (eosLock) {
+                    _eosDetected = value;
+                }
+            }
+        }
+
         
         // Flags
         private int requestId = 0; // request ID to track the recognition requests
@@ -267,6 +297,27 @@ namespace SpeechEnabledTvClient.Services.Recognizer
         }
 
         /// <summary>
+        /// Calculates the latency from the end of speech to the recognition result.
+        /// </summary>
+        /// <returns>The latency in milliseconds.</returns>
+        /// <remarks>
+        /// Although final recognition results should only be available after the end of speech is detected, 
+        /// there is a synchronization issue happening even though access to flags are synchronized.
+        /// This method is a workaround to calculate the latency by waiting for the end of speech flag to be detected.
+        /// </remarks>
+        private long calculateLatency() {
+            if (eosDetected) {
+                return (long)(DateTime.Now - eosTime).TotalMilliseconds;
+            }
+            
+            DateTime now = DateTime.Now;
+            while (!eosDetected) {
+                Thread.Sleep(20);
+            }
+            return (long)(DateTime.Now - now).TotalMilliseconds;
+        }
+
+        /// <summary>
         /// Subscribes to the recognizer events.
         /// </summary>
         private void SubscribeToEvents(Analyzer.Analyzer? analyzer, IRecognizerResponseHandler? handler) {
@@ -337,7 +388,7 @@ namespace SpeechEnabledTvClient.Services.Recognizer
 
                     // Capture the end of speech time for latency calculation
                     if (!eosDetected) {
-                        eosTime = DateTime.Now;
+                        eosDetected = true;
 
                         // Signal to stop recognition
                         UpdateRecognitionTaskCompletionSource();
@@ -363,14 +414,14 @@ namespace SpeechEnabledTvClient.Services.Recognizer
                 _recognizer.Recognized += (s, e) =>
                 {
                     // Calculate the latency from the end of speech to the recognition result
-                    TimeSpan latency = DateTime.Now - eosTime;
-                    activity?.SetTag("Latency", (long)latency.TotalMilliseconds);
+                    long latency = calculateLatency();
+                    activity?.SetTag("Latency", latency);
 
                     if (e.Result.Reason == ResultReason.RecognizedSpeech)
                     {
                         // Monitor the STT request
                         monitor.IncrementRequests("Success");
-                        monitor.RecordLatency((long)latency.TotalMilliseconds, "Success");
+                        monitor.RecordLatency(latency, "Success");
 
                         // Log the recognized event
                         activity?.AddEvent(new ActivityEvent("Recognized",
@@ -408,7 +459,7 @@ namespace SpeechEnabledTvClient.Services.Recognizer
                     {
                         // Monitor the STT request
                         monitor.IncrementRequests("NoMatch");
-                        monitor.RecordLatency((long)latency.TotalMilliseconds, "NoMatch");
+                        monitor.RecordLatency(latency, "NoMatch");
 
                         // Log the no match event
                         NoMatchDetails noMatchDetails = NoMatchDetails.FromResult(e.Result);
@@ -583,6 +634,7 @@ namespace SpeechEnabledTvClient.Services.Recognizer
         /// Updates the recognition task completion source, signaling that recognition is ready for completion.
         /// </summary>
         private void UpdateRecognitionTaskCompletionSource() {
+            eosTime = DateTime.Now;
             recognitionTaskCompletionSource.TrySetResult(true);
         }
 
@@ -605,7 +657,6 @@ namespace SpeechEnabledTvClient.Services.Recognizer
                                     {"RequestId", requestId}
                                 }));
 
-            eosTime = DateTime.Now;
             UpdateRecognitionTaskCompletionSource(); // Signal recognition completion
             _handler?.onRecognitionTimerExpired(e.SessionId, e.SignalTime);
         }
@@ -732,7 +783,6 @@ namespace SpeechEnabledTvClient.Services.Recognizer
                                 }));
 
             eosDetected = true;
-            eosTime = DateTime.Now;
 
             // Signal that recognition is ready for completion
             UpdateRecognitionTaskCompletionSource();
