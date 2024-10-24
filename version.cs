@@ -6,5 +6,5 @@ namespace SpeechEnabledTvClient ;
 public class Version {
 
     // The version of the application.
-    public static readonly string version = "0.0.3";
+    public static readonly string version = "0.0.4";
 }
