@@ -904,6 +904,11 @@ namespace SpeechEnabledTvClient.Services.Recognizer
                     logger.LogInformation($"[{Identifier(sessionId)}]\t\t\tOffset: {entity.offset}");
                     logger.LogInformation($"[{Identifier(sessionId)}]\t\t\tLength: {entity.length}");
                     logger.LogInformation($"[{Identifier(sessionId)}]\t\t\tConfidence: {entity.confidenceScore}");
+
+                    if (entity.nuance_CALENDARX != null)
+                    {
+                        logger.LogInformation($"[{Identifier(sessionId)}]\t\t\tCalendarX: {JsonSerializer.Serialize(entity.nuance_CALENDARX)}");
+                    }
                 }
 
             }

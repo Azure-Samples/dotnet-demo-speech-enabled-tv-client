@@ -1,3 +1,10 @@
+using System;
+using System.Collections.Generic;
+
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Globalization;
+
 // This code was auto-generated using https://app.quicktype.io/
 #nullable enable
 #pragma warning disable CS8618
@@ -6,13 +13,6 @@
 
 namespace SpeechEnabledTvClient.Services.Analyzer
 {
-    using System;
-    using System.Collections.Generic;
-
-    using System.Text.Json;
-    using System.Text.Json.Serialization;
-    using System.Globalization;
-
     /// <summary>
     /// Represents the interpretation of the input text.
     /// </summary>
@@ -80,6 +80,9 @@ namespace SpeechEnabledTvClient.Services.Analyzer
 
         [JsonPropertyName("extraInformation")]
         public ExtraInformation[] extraInformation { get; set; }
+
+        [JsonPropertyName("nuance_CALENDARX")]
+        public NuanceCalendarOption nuance_CALENDARX { get; set; }
     }
 
     /// <summary>

@@ -142,6 +142,11 @@ namespace SpeechEnabledTvClient
                         logger.LogInformation($"\t\t\tOffset: {entity.offset}");
                         logger.LogInformation($"\t\t\tLength: {entity.length}");
                         logger.LogInformation($"\t\t\tConfidence: {entity.confidenceScore}");
+
+                        if (entity.nuance_CALENDARX != null)
+                        {
+                            logger.LogInformation($"\t\t\tCalendarX: {JsonSerializer.Serialize(entity.nuance_CALENDARX)}");
+                        }
                     }
 
                 }
@@ -244,10 +249,14 @@ namespace SpeechEnabledTvClient
             Console.WriteLine($"  --DestAudioPath                   Path to audio file. Only used if DestAudioType is File. Default: {SynthesizerSettings.Defaults.DestAudioPath}");
             Console.WriteLine();
             Console.WriteLine("Analyzer Options:");
-            Console.WriteLine($"  --CluKey                  Azure CLU key. Default: {AnalyzerSettings.Defaults.CluKey}");
-            Console.WriteLine($"  --CluResource             Azure CLU resource. Default: {AnalyzerSettings.Defaults.CluResource}");
-            Console.WriteLine($"  --CluDeploymentName       Azure CLU deployment name. Default: {AnalyzerSettings.Defaults.CluDeploymentName}");
-            Console.WriteLine($"  --CluProjectName          Azure CLU project name. Default: {AnalyzerSettings.Defaults.CluProjectName}");
+            Console.WriteLine($"  --CluKey                      Azure CLU key. Default: {AnalyzerSettings.Defaults.CluKey}");
+            Console.WriteLine($"  --CluResource                 Azure CLU resource. Default: {AnalyzerSettings.Defaults.CluResource}");
+            Console.WriteLine($"  --CluDeploymentName           Azure CLU deployment name. Default: {AnalyzerSettings.Defaults.CluDeploymentName}");
+            Console.WriteLine($"  --CluProjectName              Azure CLU project name. Default: {AnalyzerSettings.Defaults.CluProjectName}");
+            Console.WriteLine($"  --Enable2ndPassCompletion     Enable 2nd pass prompt completions for entity analysis using Azure AI. Default: {AnalyzerSettings.Defaults.Enable2ndPassCompletion}");
+            Console.WriteLine($"  --AzureAiKey                  Azure AI API Key. Default: {AnalyzerSettings.Defaults.AzureAIKey}");
+            Console.WriteLine($"  --AzureAIEndpoint             Azure AI Endpoint. Default: {AnalyzerSettings.Defaults.AzureAIEndpoint}");
+            Console.WriteLine($"  --PromptDir                   Folder containing prompts. Default: {AnalyzerSettings.Defaults.PromptDir}");
             Console.WriteLine();
             Console.WriteLine("Bot Options:");
             Console.WriteLine($"  --BotId                       Azure Bot ID. Default: {BotSettings.Defaults.BotId}");
