@@ -18,6 +18,7 @@ Before getting started with the demo client, you will need to have an Azure subs
     * [TTS](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/get-started-text-to-speech?tabs=macos%2Cterminal&pivots=programming-language-csharp#prerequisites)
 * [CLU](https://learn.microsoft.com/en-us/azure/ai-services/language-service/conversational-language-understanding/quickstart?pivots=language-studio)
 * [Copilot Studio Bot](https://learn.microsoft.com/en-us/microsoft-copilot-studio/fundamentals-get-started?tabs=web)
+* [Azure AI Studio](https://learn.microsoft.com/en-us/azure/ai-studio/quickstarts/get-started-playground)
 
 ## Client Requirements
 
@@ -29,6 +30,7 @@ Before getting started with the demo client, you will need to have an Azure subs
 
 * Speech Recogntion
 * Conversational Language Understanding
+* Azure AI Chat Completions for deeper entity analysis
 * Speech Recognition + Conversational Understanding
 * Text to Speech
 * Audio Recorder
@@ -83,10 +85,14 @@ Synthesizer Options:
   --DestAudioPath                   Path to audio file. Only used if DestAudioType is File. Default: ./audio
 
 Analyzer Options:
-  --CluKey                  Azure CLU key. Default: 
-  --CluResource             Azure CLU resource. Default: 
-  --CluDeploymentName       Azure CLU deployment name. Default: 
-  --CluProjectName          Azure CLU project name. Default: 
+  --CluKey                      Azure CLU key. Default: 
+  --CluResource                 Azure CLU resource. Default: 
+  --CluDeploymentName           Azure CLU deployment name. Default: 
+  --CluProjectName              Azure CLU project name. Default: 
+  --Enable2ndPassCompletion     Enable 2nd pass prompt completions for entity analysis using Azure AI. Default: False
+  --AzureAiKey                  Azure AI API Key. Default: 
+  --AzureAIEndpoint             Azure AI Endpoint. Default: 
+  --PromptDir                   Folder containing prompts. Default: resources/prompts/
 
 Bot Options:
   --BotId                       Azure Bot ID. Default: 
@@ -142,6 +148,10 @@ Analyzer:
   CluResource: YOUR_CLU_RESOURCE
   CluDeploymentName: YOUR_CLU_DEPLOYMENT_NAME
   CluProjectName: YOUR_CLU_PROJECT_NAME
+  Enable2ndPassCompletion: true
+  AzureAiKey: YOUR_AZURE_AI_API_KEY
+  AzureAIEndpoint: YOUR_AZURE_AI_ENDPOINT
+  PromptDir: ./resources/prompts
 
 Endpointer:
   StartOfSpeechWindowInMs: 220
