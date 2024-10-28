@@ -142,6 +142,11 @@ namespace SpeechEnabledTvClient
                         logger.LogInformation($"\t\t\tOffset: {entity.offset}");
                         logger.LogInformation($"\t\t\tLength: {entity.length}");
                         logger.LogInformation($"\t\t\tConfidence: {entity.confidenceScore}");
+
+                        if (entity.nuance_CALENDARX != null)
+                        {
+                            logger.LogInformation($"\t\t\tCalendarX: {JsonSerializer.Serialize(entity.nuance_CALENDARX)}");
+                        }
                     }
 
                 }
