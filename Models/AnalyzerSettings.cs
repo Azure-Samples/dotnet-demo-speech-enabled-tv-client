@@ -16,11 +16,19 @@ namespace SpeechEnabledTvClient.Models
             public const string? CluResource = null;
             public const string? CluDeploymentName = null;
             public const string? CluProjectName = null;
+            public const bool Enable2ndPassCompletion = false;
+            public const string? AzureAIEndpoint = null;
+            public const string? AzureAIKey = null;
+            public const string PromptDir = "resources/prompts/";
         }
 
         public string? CluKey { get; set; } = Defaults.CluKey;
         public string? CluResource { get; set; } = Defaults.CluResource;
         public string? CluDeploymentName { get; set; } = Defaults.CluDeploymentName;
         public string? CluProjectName { get; set; } = Defaults.CluProjectName;
+        public bool Enable2ndPassCompletion { get; set; } = Defaults.Enable2ndPassCompletion;
+        public string? AzureAIEndpoint { get; set; } = Defaults.AzureAIEndpoint;
+        public string? AzureAIKey { get; set; } = Defaults.AzureAIKey;
+        public string PromptDir { get; set; } = Defaults.PromptDir;
     }
 }
