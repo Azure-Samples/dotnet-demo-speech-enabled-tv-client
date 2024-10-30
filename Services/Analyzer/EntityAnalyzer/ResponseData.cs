@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace SpeechEnabledTvClient.Services.Analyzer {
-
+namespace SpeechEnabledTvClient.Services.Analyzer.EntityAnalyzer
+{
     /// <summary>
     /// Represents the data returned from a prompt completion request.
     /// </summary>

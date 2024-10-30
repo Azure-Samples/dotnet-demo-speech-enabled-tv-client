@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace SpeechEnabledTvClient.Services.Analyzer {
-
+namespace SpeechEnabledTvClient.Services.Analyzer.EntityAnalyzer
+{
   /// <summary>
   /// PromptInput represents the JSON schema for the prompt input to Azure AI completions.
   /// </summary>

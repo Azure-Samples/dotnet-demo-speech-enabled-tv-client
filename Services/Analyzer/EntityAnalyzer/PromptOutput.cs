@@ -1,4 +1,4 @@
-namespace SpeechEnabledTvClient.Services.Analyzer
+namespace SpeechEnabledTvClient.Services.Analyzer.EntityAnalyzer
 {
     /// <summary>
     /// Represents the output of a prompt completion.
