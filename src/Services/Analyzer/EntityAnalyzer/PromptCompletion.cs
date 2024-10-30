@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 using SpeechEnabledTvClient.Models;
 using SpeechEnabledTvClient.Monitoring;
 
-namespace SpeechEnabledTvClient.Services.Analyzer
+namespace SpeechEnabledTvClient.Services.Analyzer.EntityAnalyzer
 {
     /// <summary>
     /// Represents the Azure AI prompt completion service.

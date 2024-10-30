@@ -4,6 +4,8 @@ using Azure.AI.Language.Conversations;
 using Microsoft.Extensions.Logging;
 using SpeechEnabledTvClient.Models;
 using SpeechEnabledTvClient.Monitoring;
+using SpeechEnabledTvClient.Services.Analyzer.EntityAnalyzer;
+using SpeechEnabledTvClient.Services.Analyzer.EntityModels;
 using System;
 using System.Diagnostics;
 using System.Net.Http;
@@ -228,7 +230,9 @@ namespace SpeechEnabledTvClient.Services.Analyzer
                 try
                 {
                     // Use the client to send the input to the Azure CLU service for analysis.
-                    response = client.AnalyzeConversation(createInput(input));
+                    RequestContext ctx = new RequestContext();
+                    ctx.ErrorOptions = ErrorOptions.NoThrow;
+                    response = client.AnalyzeConversation(createInput(input), ctx);
                     latency = (long)(DateTime.Now - start).TotalMilliseconds;
 
                     // Check for an error response.
@@ -245,21 +249,16 @@ namespace SpeechEnabledTvClient.Services.Analyzer
                 {
                     latency = (long)(DateTime.Now - start).TotalMilliseconds;
 
-                    if (response == null || response.ContentStream == null) {
-                        logger.LogError($"[{sessionId}.{requestId}] Exception returned from the analyzer.");
-                        ErrorResponse errorResponse = ErrorResponse.FromContentStream(ex.Message);
+                    logger.LogError($"[{sessionId}.{requestId}] Exception returned from the analyzer.");
+                    monitor.IncrementRequests("Error");
+                    monitor.RecordLatency(latency, "Error");
+                    activity?.SetTag("Disposition", "Error");
 
-                        monitor.IncrementRequests("Error");
-                        monitor.RecordLatency(latency, "Error");
-
-                        activity?.SetTag("Disposition", "Error");
-                        activity?.SetTag("ErrorCode", errorResponse.content.error.code);
-                        activity?.SetTag("ErrorMessage", errorResponse.content.error.message);
-                        
-                        return new AnalyzerResponse(errorResponse);
-                    }
-
-                    return new AnalyzerResponse();
+                    ErrorResponse errorResponse = ErrorResponse.FromContentStream(ex.Message);
+                    activity?.SetTag("ErrorCode", errorResponse.content.error.code);
+                    activity?.SetTag("ErrorMessage", errorResponse.content.error.message);
+                    
+                    return new AnalyzerResponse(errorResponse);
                 } 
                 finally {
                     activity?.SetTag("ClientRequestID", response?.ClientRequestId);

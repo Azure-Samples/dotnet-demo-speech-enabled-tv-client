@@ -128,7 +128,7 @@ namespace SpeechEnabledTvClient
                     break;
                 }
                 AnalyzerResponse response = analyzer.Analyze(input);
-                if (!response.IsError) {
+                if (response != null && !response.IsError) {
                     Interpretation interpretation = response.interpretation;
                     Prediction prediction = interpretation.result.prediction;
                     logger.LogInformation($"Analysis result: ");
@@ -150,12 +150,12 @@ namespace SpeechEnabledTvClient
                     }
 
                 }
-                else if (response.HasErrorResponse) {
+                else if (response != null && response.HasErrorResponse) {
                     ErrorResponse error = response.error;
                     logger.LogError($"Error: {error.content.error.message}");
                 }
                 else {
-                    logger.LogError("Error: could not parse response");
+                    logger.LogError($"Error: could not parse response: {JsonSerializer.Serialize(response)}");
                 }
                 System.Threading.Thread.Sleep(500); // Provide a slight delay so logs are not interleaved with console output
             }

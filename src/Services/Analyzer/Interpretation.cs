@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Globalization;
+using SpeechEnabledTvClient.Services.Analyzer.EntityModels;
 
 // This code was auto-generated using https://app.quicktype.io/
 #nullable enable
@@ -108,11 +109,14 @@ namespace SpeechEnabledTvClient.Services.Analyzer
         [JsonPropertyName("dateTimeSubKind")]
         public string dateTimeSubKind { get; set; }
 
+        [JsonPropertyName("numberKind")]
+        public string numberKind { get; set; }
+
         [JsonPropertyName("timex")]
         public string timex { get; set; }
 
         [JsonPropertyName("value")]
-        public DateTimeOffset value { get; set; }
+        public object value { get; set; }
     }
 
     /// <summary>

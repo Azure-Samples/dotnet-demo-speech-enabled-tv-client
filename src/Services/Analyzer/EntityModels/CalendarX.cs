@@ -8,7 +8,7 @@ using System.Text.Json.Serialization;
 /// The schema used can be found here: https://docs.nuance.com/mix/reference/data_packs/predefined/latest/nuance_calendarx/#schema
 /// </summary>
 
-namespace SpeechEnabledTvClient.Services.Analyzer
+namespace SpeechEnabledTvClient.Services.Analyzer.EntityModels
 {
     public class TimeAbs
     {
