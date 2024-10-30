@@ -7,7 +7,10 @@ The Azure Cognitive Services used by the demo client include:
 * Azure Speech-to-Text (STT)
 * Azure Text-to-Speech (TTS)
 * Azure Conversational Language Understanding (CLU)
+* Azure OpenAI (AI)
 * Microsoft Copilot Studio (MCS)
+
+![high-level-architecture](./img/dtv-demo-client-hla.drawio.png)
 
 ## Azure Requirements
 
