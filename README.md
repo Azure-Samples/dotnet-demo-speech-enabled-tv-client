@@ -96,6 +96,7 @@ Analyzer Options:
   --AzureAiKey                  Azure AI API Key. Default: 
   --AzureAIEndpoint             Azure AI Endpoint. Default: 
   --PromptDir                   Folder containing prompts. Default: resources/prompts/
+  --AzureStorageTableUri        Azure Storage Table Uri of resource containing entity literal/value mappings. Default: 
 
 Bot Options:
   --BotId                       Azure Bot ID. Default: 
@@ -155,6 +156,7 @@ Analyzer:
   AzureAiKey: YOUR_AZURE_AI_API_KEY
   AzureAIEndpoint: YOUR_AZURE_AI_ENDPOINT
   PromptDir: ./resources/prompts
+  AzureStorageTableUri: YOUR_AZURE_STORAGE_TABLE_URI # For local development using Azurite, specify: UseDevelopmentStorage=true
 
 Endpointer:
   StartOfSpeechWindowInMs: 220

@@ -41,6 +41,7 @@ Analyzer:
   AzureAiKey: YOUR_AZURE_AI_API_KEY
   AzureAIEndpoint: YOUR_AZURE_AI_ENDPOINT
   PromptDir: ./resources/prompts
+  AzureStorageTableUri: YOUR_AZURE_STORAGE_TABLE_URI # For local development using Azurite, specify: UseDevelopmentStorage=true
 
 Endpointer:
   StartOfSpeechWindowInMs: 220
