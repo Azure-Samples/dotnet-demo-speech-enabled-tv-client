@@ -139,6 +139,7 @@ namespace SpeechEnabledTvClient
                     {
                         logger.LogInformation($"\t\tCategory: {entity.category}");
                         logger.LogInformation($"\t\t\tText: {entity.text}");
+                        logger.LogInformation($"\t\t\tValue: {entity.value}");
                         logger.LogInformation($"\t\t\tOffset: {entity.offset}");
                         logger.LogInformation($"\t\t\tLength: {entity.length}");
                         logger.LogInformation($"\t\t\tConfidence: {entity.confidenceScore}");
@@ -257,6 +258,7 @@ namespace SpeechEnabledTvClient
             Console.WriteLine($"  --AzureAiKey                  Azure AI API Key. Default: {AnalyzerSettings.Defaults.AzureAIKey}");
             Console.WriteLine($"  --AzureAIEndpoint             Azure AI Endpoint. Default: {AnalyzerSettings.Defaults.AzureAIEndpoint}");
             Console.WriteLine($"  --PromptDir                   Folder containing prompts. Default: {AnalyzerSettings.Defaults.PromptDir}");
+            Console.WriteLine($"  --AzureStorageTableUri        Azure Storage Table Uri of resource containing entity literal/value mappings. Default: {AnalyzerSettings.Defaults.AzureStorageTableUri}");
             Console.WriteLine();
             Console.WriteLine("Bot Options:");
             Console.WriteLine($"  --BotId                       Azure Bot ID. Default: {BotSettings.Defaults.BotId}");

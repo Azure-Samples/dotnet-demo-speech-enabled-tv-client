@@ -901,6 +901,7 @@ namespace SpeechEnabledTvClient.Services.Recognizer
                 {
                     logger.LogInformation($"[{Identifier(sessionId)}]\t\tCategory: {entity.category}");
                     logger.LogInformation($"[{Identifier(sessionId)}]\t\t\tText: {entity.text}");
+                    logger.LogInformation($"[{Identifier(sessionId)}]\t\t\tValue: {entity.value}");
                     logger.LogInformation($"[{Identifier(sessionId)}]\t\t\tOffset: {entity.offset}");
                     logger.LogInformation($"[{Identifier(sessionId)}]\t\t\tLength: {entity.length}");
                     logger.LogInformation($"[{Identifier(sessionId)}]\t\t\tConfidence: {entity.confidenceScore}");
