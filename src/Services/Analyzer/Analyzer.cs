@@ -6,6 +6,7 @@ using SpeechEnabledTvClient.Models;
 using SpeechEnabledTvClient.Monitoring;
 using SpeechEnabledTvClient.Services.Analyzer.EntityAnalyzer;
 using SpeechEnabledTvClient.Services.Analyzer.EntityModels;
+using SpeechEnabledTvClient.Services.Analyzer.EntityLiteralMapper;
 using System;
 using System.Diagnostics;
 using System.Net.Http;
@@ -27,6 +28,7 @@ namespace SpeechEnabledTvClient.Services.Analyzer
         AnalyzerSettings settings = AppSettings.AnalyzerSettings();
         private readonly ConversationAnalysisClient client;
         private readonly PromptCompletion? promptCompletion;
+        private readonly Dictionary<string, LiteralValueMapper> entityMappings;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Analyzer"/> class.
@@ -50,6 +52,15 @@ namespace SpeechEnabledTvClient.Services.Analyzer
             if (settings.Enable2ndPassCompletion)
             {
                 promptCompletion = new PromptCompletion(logger, new SpeechEnabledTvClient.Monitoring.Monitor(AppSettings.LoadAppSettings(new string[] { })));
+            }
+
+            // Fetch and cache literal/value mappings for known entity <--> table name mappings
+            entityMappings = new Dictionary<string, LiteralValueMapper>();
+            if (!string.IsNullOrEmpty(settings.AzureStorageTableUri)) {
+                foreach (var mapping in EntityTableMappings.EntityTableNameMappings)
+                {
+                    entityMappings.Add(mapping.Key, new LiteralValueMapper(logger, settings.AzureStorageTableUri, mapping.Value, mapping.Key, "en-us"));
+                }
             }
         }
 
@@ -155,17 +166,16 @@ namespace SpeechEnabledTvClient.Services.Analyzer
         /// </remarks>
         private Entity[] ProcessEntities(Entity[] entities, string? sessionId, int requestId)
         {
-            // ignore if 2nd pass completion is not enabled
-            if (!settings.Enable2ndPassCompletion)
-            {
-                return entities;
-            }
-
-            // for each entity, check for and process calendarx entities
+            // apply literal/value mappings and 2nd-pass completions to entities
             int entityCount = 0;
             foreach (var entity in entities)
             {
-                if (entity.category == "nuance_CALENDARX")
+                if (entityMappings.ContainsKey(entity.category)) {
+                    LiteralValueMapper lvm = entityMappings[entity.category];
+                    entities[entityCount].value = lvm.GetMappedValue(entity.text);
+                }
+
+                if (settings.Enable2ndPassCompletion && entity.category == "nuance_CALENDARX")
                 {
                     logger.LogInformation($"Found nuance_CALENDARX entity: {entity.text}");
                     entities[entityCount].nuance_CALENDARX = ProcessCalendarXEntity(entity.text, sessionId, requestId);

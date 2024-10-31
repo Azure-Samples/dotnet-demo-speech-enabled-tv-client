@@ -20,6 +20,7 @@ namespace SpeechEnabledTvClient.Models
             public const string? AzureAIEndpoint = null;
             public const string? AzureAIKey = null;
             public const string PromptDir = "resources/prompts/";
+            public const string AzureStorageTableUri = null;
         }
 
         public string? CluKey { get; set; } = Defaults.CluKey;
@@ -30,5 +31,6 @@ namespace SpeechEnabledTvClient.Models
         public string? AzureAIEndpoint { get; set; } = Defaults.AzureAIEndpoint;
         public string? AzureAIKey { get; set; } = Defaults.AzureAIKey;
         public string PromptDir { get; set; } = Defaults.PromptDir;
+        public string AzureStorageTableUri { get; set; } = Defaults.AzureStorageTableUri;
     }
 }
