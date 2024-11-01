@@ -67,6 +67,9 @@ namespace SpeechEnabledTvClient.Services.Analyzer
         [JsonPropertyName("text")]
         public string text { get; set; }
 
+        [JsonPropertyName("value")]
+        public string value { get; set; } = string.Empty;
+
         [JsonPropertyName("offset")]
         public long offset { get; set; }
 
