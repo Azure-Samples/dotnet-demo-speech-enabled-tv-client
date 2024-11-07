@@ -16,7 +16,7 @@ namespace SpeechEnabledTvClient.Services.Synthesizer
     /// <summary>
     /// Synthesizes speech from text using Azure TTS.
     /// </summary>
-    class Synthesizer : IAudioOutputStreamHandler
+    public class Synthesizer : IAudioOutputStreamHandler
     {
         // properties for logging and monitoring
         ILogger logger;
@@ -25,6 +25,7 @@ namespace SpeechEnabledTvClient.Services.Synthesizer
 
         // Settings and config
         SynthesizerSettings settings = AppSettings.SynthesizerSettings();
+        private bool speaking = false;
         private SpeechConfig? config;
 
         private SpeechSynthesizer speechSynthesizer;
@@ -139,6 +140,11 @@ namespace SpeechEnabledTvClient.Services.Synthesizer
             }
         }
 
+        public bool IsSpeaking()
+        {
+            return speaking;
+        }
+
         /// <summary>
         /// Synthesizes speech from text.
         /// </summary>
@@ -146,6 +152,7 @@ namespace SpeechEnabledTvClient.Services.Synthesizer
         /// <returns></returns>
         public async Task Synthesize(string input)
         {
+            speaking = true;
             if (speechSynthesizer == null)
             {
                 throw new InvalidOperationException("Synthesizer not initialized");
@@ -353,6 +360,7 @@ namespace SpeechEnabledTvClient.Services.Synthesizer
         /// <param name="sessionId"></param>
         public void onPlayingStopped(string sessionId)
         {
+            speaking = false;
             logger.LogInformation($"[{monitor.SessionId}.{requestId}] Playing stopped");
         }
     }
