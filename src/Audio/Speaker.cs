@@ -85,7 +85,13 @@ namespace SpeechEnabledTvClient.Audio
         /// <param name="audioData">The audio data to write.</param>
         public void onAudioData(byte[] audioData)
         {
-            dataItems.Add(audioData);
+            int framesPerBuffer = playbackFrequency / 5; // 20ms intervals
+            for (int i = 0; i < audioData.Length; i+=framesPerBuffer)
+            {
+                byte[] audio = new byte[framesPerBuffer];
+                Array.Copy(audioData, i, audio, 0, framesPerBuffer);
+                dataItems.Add(audio);
+            }
         }
 
         /// <summary>
