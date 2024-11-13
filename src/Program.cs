@@ -248,6 +248,7 @@ namespace SpeechEnabledTvClient
             Console.WriteLine($"  --SpeechSynthesisOutputFormat     Azure TTS output format. Default: {SynthesizerSettings.Defaults.SpeechSynthesisOutputFormat}");
             Console.WriteLine($"  --DestAudioType                   Audio output type [speaker, file]. Default: {SynthesizerSettings.Defaults.DestAudioType}");
             Console.WriteLine($"  --DestAudioPath                   Path to audio file. Only used if DestAudioType is File. Default: {SynthesizerSettings.Defaults.DestAudioPath}");
+            Console.WriteLine($"  --SynthesizerTimeoutMs            Synthesizer timeout. Default: {SynthesizerSettings.Defaults.SynthesizerTimeoutMs}");
             Console.WriteLine();
             Console.WriteLine("Analyzer Options:");
             Console.WriteLine($"  --CluKey                      Azure CLU key. Default: {AnalyzerSettings.Defaults.CluKey}");
