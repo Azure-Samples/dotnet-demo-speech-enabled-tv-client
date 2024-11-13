@@ -18,6 +18,7 @@ namespace SpeechEnabledTvClient.Models
             public const string SpeechSynthesisOutputFormat = "Raw22050Hz16BitMonoPcm";
             public const string DestAudioType = "speaker"; // speaker or file
             public const string DestAudioPath = "./audio"; // path to either a folder containing audio or a specific audio file
+            public const int SynthesizerTimeoutMs = 5000; // 5 seconds
         }
         public string SubscriptionKey { get; set; } = Defaults.SubscriptionKey;
         public string ServiceRegion { get; set; } = Defaults.ServiceRegion;
@@ -25,5 +26,6 @@ namespace SpeechEnabledTvClient.Models
         public string SpeechSynthesisOutputFormat { get; set; } = Defaults.SpeechSynthesisOutputFormat;
         public string DestAudioType { get; set; } = Defaults.DestAudioType;
         public string DestAudioPath { get; set; } = Defaults.DestAudioPath;
+        public int SynthesizerTimeoutMs { get; set; } = Defaults.SynthesizerTimeoutMs;
     }
 }

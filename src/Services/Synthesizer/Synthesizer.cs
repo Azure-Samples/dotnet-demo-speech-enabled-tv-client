@@ -28,6 +28,7 @@ namespace SpeechEnabledTvClient.Services.Synthesizer
         private SpeechConfig? config;
 
         private SpeechSynthesizer speechSynthesizer;
+        TaskCompletionSource<bool> synthesisTaskCompletionSource = new TaskCompletionSource<bool>(); // Task completion source to signal synthesis completion
         
         // Authorization token
         private string? authorizationToken;
@@ -171,8 +172,15 @@ namespace SpeechEnabledTvClient.Services.Synthesizer
 
                 SubscribeToEvents();
 
+                // Set the timeout for the synthesis task and ensure we don't prematurely stop processing the audio stream
+                Task timeoutTask = Task.Delay(settings.SynthesizerTimeoutMs);
+                synthesisTaskCompletionSource = new TaskCompletionSource<bool>();
+                
                 // Call the Azure TTS service and process the result.
                 var speechSynthesisResult = await speechSynthesizer.SpeakTextAsync(input);
+                
+                // Wait for the synthesis task to complete or timeout
+                await Task.WhenAny(synthesisTaskCompletionSource.Task, timeoutTask);
                 activity?.SetTag("TotalDurationInMs", (long)(DateTime.Now - startTime).TotalMilliseconds);
 
                 OutputSpeechSynthesisResult(speechSynthesisResult, input);
@@ -202,6 +210,7 @@ namespace SpeechEnabledTvClient.Services.Synthesizer
                     monitor.RecordLatency((long)latency.TotalMilliseconds, "Canceled");
 
                     logger.LogInformation($"[{e.Result.ResultId}.{requestId}] SynthesisCanceled event");
+                    synthesisTaskCompletionSource.TrySetResult(true);
                 };
 
                 speechSynthesizer.SynthesisCompleted += (s, e) =>
@@ -216,6 +225,7 @@ namespace SpeechEnabledTvClient.Services.Synthesizer
                                             {"AudioDataSize", e.Result.AudioData.Length},
                                             {"AudioDuration", e.Result.AudioDuration}
                                         }));
+                    synthesisTaskCompletionSource.TrySetResult(true);
                 };
 
                 speechSynthesizer.SynthesisStarted += (s, e) =>

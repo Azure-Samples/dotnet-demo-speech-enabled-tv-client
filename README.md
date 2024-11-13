@@ -86,6 +86,7 @@ Synthesizer Options:
   --SpeechSynthesisOutputFormat     Azure TTS output format. Default: Raw22050Hz16BitMonoPcm
   --DestAudioType                   Audio output type [speaker, file]. Default: speaker
   --DestAudioPath                   Path to audio file. Only used if DestAudioType is File. Default: ./audio
+  --SynthesizerTimeoutMs            Synthesizer timeout. Default: 5000
 
 Analyzer Options:
   --CluKey                      Azure CLU key. Default: 
@@ -146,6 +147,7 @@ Synthesizer:
   SpeechSynthesisOutputFormat: Raw22050Hz16BitMonoPcm
   DestAudioType: file # file or speaker
   DestAudioPath: ./audio # path to either a folder containing audio or a specific audio file
+  SynthesizerTimeoutMs: 5000
 
 Analyzer:
   CluKey: YOUR_CLU_KEY
