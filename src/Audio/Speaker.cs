@@ -21,9 +21,10 @@ namespace SpeechEnabledTvClient.Audio
         private bool isPlaying = false;
         private object syncLock = new object();
         private int playbackFrequency;
-        private BlockingCollection<byte[]> dataItems = new BlockingCollection<byte[]>();
+        private BlockingCollection<byte> dataItems = new BlockingCollection<byte>();
 
         private string sessionId = string.Empty;
+        private bool streamStarted = false;
 
         private readonly Dictionary<string, int> supportedAudioFormats = new Dictionary<string, int>
         {
@@ -43,7 +44,8 @@ namespace SpeechEnabledTvClient.Audio
         public Speaker(ILogger logger, string outputFormat)
         {
             this.logger = logger;
-            // Console.WriteLine(PortAudio.VersionInfo.versionText);            
+            // Console.WriteLine(PortAudio.VersionInfo.versionText);    
+            this.streamStarted = false;        
             try
             {
                 if (!supportedAudioFormats.TryGetValue(outputFormat, out playbackFrequency)) {
@@ -85,12 +87,9 @@ namespace SpeechEnabledTvClient.Audio
         /// <param name="audioData">The audio data to write.</param>
         public void onAudioData(byte[] audioData)
         {
-            int framesPerBuffer = playbackFrequency / 5; // 20ms intervals
-            for (int i = 0; i < audioData.Length; i+=framesPerBuffer)
+            for (int i = 0; i < audioData.Length; i++)
             {
-                byte[] audio = new byte[framesPerBuffer];
-                Array.Copy(audioData, i, audio, 0, framesPerBuffer);
-                dataItems.Add(audio);
+                dataItems.Add(audioData[i]);
             }
         }
 
@@ -114,27 +113,23 @@ namespace SpeechEnabledTvClient.Audio
             try
             {
                 int expected = Convert.ToInt32(frameCount);
-                int i = 0;
 
-                if (dataItems.Count == 0)
+                if (dataItems.Count < frameCount/sizeof(Int16) && !streamStarted)
                 {
                     // Play some silence while we wait for data
                     int sizeInBytes = expected * sizeof(Int16);
                     Marshal.Copy(new byte[sizeInBytes], 0, output, sizeInBytes);
                     return StreamCallbackResult.Continue;
-                }
-
-                while ((dataItems.Count != 0) && (i < expected))
-                {
-                    // Fill up the buffer with the requested audio
-                    int needed = expected - i;
-
-                    if (dataItems.Count != 0)
+                } 
+                else {
+                    byte[] audio = new byte[frameCount*sizeof(Int16)];
+                    for (int i = 0; dataItems.Count > 0 && i < frameCount*sizeof(Int16); i+=sizeof(Int16))
                     {
-                        byte[] audio = dataItems.Take();
-                        Marshal.Copy(audio, 0, output, audio.Length);
-                        i+= audio.Length/sizeof(Int16); 
+                        audio[i] = dataItems.Take();
+                        audio[i+1] = dataItems.Take();
                     }
+                    Marshal.Copy(audio, 0, output, audio.Length);
+                    streamStarted = true;
                 }
 
                 // If we're done we're done
@@ -147,7 +142,7 @@ namespace SpeechEnabledTvClient.Audio
             }
             catch (System.Exception e)
             {
-                logger.LogError($"[{sessionId}] Error recording audio: {e.Message}");
+                logger.LogError($"[{sessionId}] Error playing audio: {e.Message}");
                 return StreamCallbackResult.Complete;
             }
         }
@@ -220,7 +215,7 @@ namespace SpeechEnabledTvClient.Audio
                     }
                     catch (System.Exception e)
                     {
-                        logger.LogError($"[{sessionId}] Error stopping speaker: {e.Message}");
+                        logger.LogError($"[{sessionId}] Error stopping speaker: {e.Message} {e.StackTrace}");
                     }
                     finally
                     {
