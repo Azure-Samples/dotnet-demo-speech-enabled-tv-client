@@ -225,7 +225,7 @@ namespace SpeechEnabledTvClient.Audio
                     }
                     catch (System.Exception e)
                     {
-                        logger.LogError($"[{sessionId}] Error stopping speaker: {e.Message} {e.StackTrace}");
+                        logger.LogError($"[{sessionId}] Error stopping speaker: {e.Message}");
                     }
                     finally
                     {
