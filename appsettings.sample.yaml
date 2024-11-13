@@ -31,6 +31,7 @@ Synthesizer:
   SpeechSynthesisOutputFormat: Raw22050Hz16BitMonoPcm
   DestAudioType: file # file or speaker
   DestAudioPath: ./audio # path to either a folder containing audio or a specific audio file
+  SynthesizerTimeoutMs: 5000
 
 Analyzer:
   CluKey: YOUR_CLU_KEY
