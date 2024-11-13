@@ -44,8 +44,8 @@ namespace SpeechEnabledTvClient.Audio
         public Speaker(ILogger logger, string outputFormat)
         {
             this.logger = logger;
-            // Console.WriteLine(PortAudio.VersionInfo.versionText);    
             this.streamStarted = false;        
+            // Console.WriteLine(PortAudio.VersionInfo.versionText);
             try
             {
                 if (!supportedAudioFormats.TryGetValue(outputFormat, out playbackFrequency)) {
@@ -112,37 +112,47 @@ namespace SpeechEnabledTvClient.Audio
         {
             try
             {
-                int expected = Convert.ToInt32(frameCount);
+                const int bytesPerSample = sizeof(short); // Assuming 16-bit audio samples
+                int totalBytesNeeded = (int)frameCount * bytesPerSample;
 
-                if (dataItems.Count < frameCount/sizeof(Int16) && !streamStarted)
+                // Check if we have enough data to fill the buffer
+                if (dataItems.Count < totalBytesNeeded && !streamStarted)
                 {
-                    // Play some silence while we wait for data
-                    int sizeInBytes = expected * sizeof(Int16);
-                    Marshal.Copy(new byte[sizeInBytes], 0, output, sizeInBytes);
+                    // Not enough data; output silence
+                    byte[] silenceBuffer = new byte[totalBytesNeeded];
+                    Marshal.Copy(silenceBuffer, 0, output, totalBytesNeeded);
                     return StreamCallbackResult.Continue;
-                } 
-                else {
-                    byte[] audio = new byte[frameCount*sizeof(Int16)];
-                    for (int i = 0; dataItems.Count > 0 && i < frameCount*sizeof(Int16); i+=sizeof(Int16))
-                    {
-                        audio[i] = dataItems.Take();
-                        audio[i+1] = dataItems.Take();
-                    }
-                    Marshal.Copy(audio, 0, output, audio.Length);
-                    streamStarted = true;
                 }
 
-                // If we're done we're done
+                // Prepare the audio buffer
+                byte[] audioBuffer = new byte[totalBytesNeeded];
+                int bytesRead = 0;
+
+                // Fill the audio buffer with available data
+                while (bytesRead < totalBytesNeeded && dataItems.Count > 0)
+                {
+                    audioBuffer[bytesRead++] = dataItems.Take();
+                }
+                // If the buffer is not fully filled, pad the rest with silence
+                if (bytesRead < totalBytesNeeded)
+                {
+                    Array.Clear(audioBuffer, bytesRead, totalBytesNeeded - bytesRead);
+                }
+
+                // Copy the audio buffer to the output
+                Marshal.Copy(audioBuffer, 0, output, totalBytesNeeded);
+                streamStarted = true;
+
+                // Check if all data has been played
                 if (dataItems.Count == 0)
                 {
                     return StreamCallbackResult.Complete;
                 }
-
                 return StreamCallbackResult.Continue;
             }
-            catch (System.Exception e)
+            catch (Exception ex)
             {
-                logger.LogError($"[{sessionId}] Error playing audio: {e.Message}");
+                logger.LogError($"[{sessionId}] Error playing audio: {ex.Message}");
                 return StreamCallbackResult.Complete;
             }
         }
