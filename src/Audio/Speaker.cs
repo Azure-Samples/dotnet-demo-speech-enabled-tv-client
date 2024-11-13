@@ -21,9 +21,10 @@ namespace SpeechEnabledTvClient.Audio
         private bool isPlaying = false;
         private object syncLock = new object();
         private int playbackFrequency;
-        private BlockingCollection<byte[]> dataItems = new BlockingCollection<byte[]>();
+        private BlockingCollection<byte> dataItems = new BlockingCollection<byte>();
 
         private string sessionId = string.Empty;
+        private bool streamStarted = false;
 
         private readonly Dictionary<string, int> supportedAudioFormats = new Dictionary<string, int>
         {
@@ -43,7 +44,8 @@ namespace SpeechEnabledTvClient.Audio
         public Speaker(ILogger logger, string outputFormat)
         {
             this.logger = logger;
-            // Console.WriteLine(PortAudio.VersionInfo.versionText);            
+            this.streamStarted = false;        
+            // Console.WriteLine(PortAudio.VersionInfo.versionText);
             try
             {
                 if (!supportedAudioFormats.TryGetValue(outputFormat, out playbackFrequency)) {
@@ -85,12 +87,9 @@ namespace SpeechEnabledTvClient.Audio
         /// <param name="audioData">The audio data to write.</param>
         public void onAudioData(byte[] audioData)
         {
-            int framesPerBuffer = playbackFrequency / 5; // 20ms intervals
-            for (int i = 0; i < audioData.Length; i+=framesPerBuffer)
+            for (int i = 0; i < audioData.Length; i++)
             {
-                byte[] audio = new byte[framesPerBuffer];
-                Array.Copy(audioData, i, audio, 0, framesPerBuffer);
-                dataItems.Add(audio);
+                dataItems.Add(audioData[i]);
             }
         }
 
@@ -113,41 +112,47 @@ namespace SpeechEnabledTvClient.Audio
         {
             try
             {
-                int expected = Convert.ToInt32(frameCount);
-                int i = 0;
+                const int bytesPerSample = sizeof(short); // Assuming 16-bit audio samples
+                int totalBytesNeeded = (int)frameCount * bytesPerSample;
 
-                if (dataItems.Count == 0)
+                // Check if we have enough data to fill the buffer
+                if (dataItems.Count < totalBytesNeeded && !streamStarted)
                 {
-                    // Play some silence while we wait for data
-                    int sizeInBytes = expected * sizeof(Int16);
-                    Marshal.Copy(new byte[sizeInBytes], 0, output, sizeInBytes);
+                    // Not enough data; output silence
+                    byte[] silenceBuffer = new byte[totalBytesNeeded];
+                    Marshal.Copy(silenceBuffer, 0, output, totalBytesNeeded);
                     return StreamCallbackResult.Continue;
                 }
 
-                while ((dataItems.Count != 0) && (i < expected))
-                {
-                    // Fill up the buffer with the requested audio
-                    int needed = expected - i;
+                // Prepare the audio buffer
+                byte[] audioBuffer = new byte[totalBytesNeeded];
+                int bytesRead = 0;
 
-                    if (dataItems.Count != 0)
-                    {
-                        byte[] audio = dataItems.Take();
-                        Marshal.Copy(audio, 0, output, audio.Length);
-                        i+= audio.Length/sizeof(Int16); 
-                    }
+                // Fill the audio buffer with available data
+                while (bytesRead < totalBytesNeeded && dataItems.Count > 0)
+                {
+                    audioBuffer[bytesRead++] = dataItems.Take();
+                }
+                // If the buffer is not fully filled, pad the rest with silence
+                if (bytesRead < totalBytesNeeded)
+                {
+                    Array.Clear(audioBuffer, bytesRead, totalBytesNeeded - bytesRead);
                 }
 
-                // If we're done we're done
+                // Copy the audio buffer to the output
+                Marshal.Copy(audioBuffer, 0, output, totalBytesNeeded);
+                streamStarted = true;
+
+                // Check if all data has been played
                 if (dataItems.Count == 0)
                 {
                     return StreamCallbackResult.Complete;
                 }
-
                 return StreamCallbackResult.Continue;
             }
-            catch (System.Exception e)
+            catch (Exception ex)
             {
-                logger.LogError($"[{sessionId}] Error recording audio: {e.Message}");
+                logger.LogError($"[{sessionId}] Error playing audio: {ex.Message}");
                 return StreamCallbackResult.Complete;
             }
         }
@@ -220,7 +225,7 @@ namespace SpeechEnabledTvClient.Audio
                     }
                     catch (System.Exception e)
                     {
-                        logger.LogError($"[{sessionId}] Error stopping speaker: {e.Message}");
+                        logger.LogError($"[{sessionId}] Error stopping speaker: {e.Message} {e.StackTrace}");
                     }
                     finally
                     {
