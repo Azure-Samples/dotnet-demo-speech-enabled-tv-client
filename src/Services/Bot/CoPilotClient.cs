@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using System.Text.Json;
 using SpeechEnabledTvClient.Services.Recognizer;
+using SpeechEnabledTvClient.Services.Synthesizer;
 using SpeechEnabledTvClient.Services.Analyzer;
 using SpeechEnabledTvClient.Monitoring;
 
@@ -80,7 +81,7 @@ namespace SpeechEnabledTvClient.Services.Bot
             }).Result; // Blocks until the task completes and retrieves the result
         }
 
-        public async Task StartConversation(SpeechEnabledTvClient.Services.Recognizer.Recognizer? recognizer)
+        public async Task StartConversation(SpeechEnabledTvClient.Services.Recognizer.Recognizer? recognizer, SpeechEnabledTvClient.Services.Synthesizer.Synthesizer? synthesizer)
         {
             if (_botService == null)
             {
@@ -108,7 +109,13 @@ namespace SpeechEnabledTvClient.Services.Bot
                         inputMessage = GetUserInput();
                     }
 
+                    synthesizer?.Synthesize($"Give me a moment to process your request.");
+                    while (synthesizer?.IsSpeaking() == true) {
+                        Thread.Sleep(100);
+                    }
                     CopilotSays($"Give me a moment to process your request...");
+
+
                     if (string.Equals(inputMessage.TrimEnd('.'), _endConversationMessage, StringComparison.OrdinalIgnoreCase))
                     {
                         directLineClient.Conversations.PostActivityAsync(conversationId, new Activity()
@@ -121,6 +128,10 @@ namespace SpeechEnabledTvClient.Services.Bot
                         _watermark = null;
                         _logger.LogInformation($"[{conversation.ConversationId}] Client Copilot Conversation Ended");
                         CopilotSays("Goodbye!");
+                        synthesizer?.Synthesize("Goodbye");
+                        while (synthesizer?.IsSpeaking() == true) {
+                            Thread.Sleep(100);
+                        }
                         break;
                     }
 
@@ -143,7 +154,7 @@ namespace SpeechEnabledTvClient.Services.Bot
                         count = responses.Count;
                     }
                     CopilotSays($"{_botName}: Here's what I found...");
-                    BotReply(responses);
+                    BotReply(responses, synthesizer);
                     CopilotSays("Ready for your next request!");
                     Thread.Sleep(500);
                 }
@@ -223,7 +234,7 @@ namespace SpeechEnabledTvClient.Services.Bot
         /// </summary>
         /// <param name="responses">List of DirectLine activities <see cref="https://github.com/Microsoft/botframework-sdk/blob/master/specs/botframework-activity/botframework-activity.md"/>
         /// </param>
-        private void BotReply(List<Activity> responses)
+        private void BotReply(List<Activity> responses, SpeechEnabledTvClient.Services.Synthesizer.Synthesizer? synthesizer)
         {
             responses?.ForEach(responseActivity =>
             {
@@ -232,6 +243,10 @@ namespace SpeechEnabledTvClient.Services.Bot
                 // Showing examples of Text & SuggestedActions in response payload
                 if (!string.IsNullOrEmpty(responseActivity.Text))
                 {
+                    synthesizer?.Synthesize($"{responseActivity.Text}");
+                    while (synthesizer?.IsSpeaking() == true) {
+                        Thread.Sleep(100);
+                    }
                     Console.WriteLine(string.Join(Environment.NewLine, responseActivity.Text));
                 }
 

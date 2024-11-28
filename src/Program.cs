@@ -190,8 +190,9 @@ namespace SpeechEnabledTvClient
         public void StartConversation()
         {
             Recognizer recognizer = new Recognizer(logger, new SpeechEnabledTvClient.Monitoring.Monitor(settings));
+            Synthesizer synthesizer = new Synthesizer(logger, new SpeechEnabledTvClient.Monitoring.Monitor(settings));
             CopilotClient client = new CopilotClient(logger);
-            client.StartConversation(recognizer).Wait();
+            client.StartConversation(recognizer, synthesizer).Wait();
         }
 
         // Audio Recorder
